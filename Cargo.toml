@@ -1,0 +1,17 @@
+[workspace]
+resolver = "2"
+members = ["crates/*", "xtask"]
+# Spikes são descartáveis e independentes (cada um com seu próprio Cargo.toml/target).
+exclude = ["spikes", "src-tauri"]
+
+[workspace.package]
+version = "0.0.0"
+edition = "2021"
+license = "UNLICENSED"
+publish = false
+
+[workspace.lints.rust]
+unsafe_code = "deny"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
