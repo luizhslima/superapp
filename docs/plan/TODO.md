@@ -36,7 +36,13 @@ Legenda: ⏳ pendente · 🔄 em andamento · ✅ feito · 🧊 bloqueado/adiado
 - Telemetria/registro de mini-apps (Fase 5) precisará de hospedagem: avaliar GitHub Releases/Pages como registro estático.
 
 ## Fase 1 (em andamento)
-- ✅ E1.1 `superapp-core`: roteador IPC tipado, política deny-by-default por janela, erros padronizados, auditoria (8 testes). **Falta** ligar ao Tauri (comando único que chama `Router::dispatch`) e usar `TracingAudit` com arquivo.
+- ✅ E1.1 `superapp-core`: roteador IPC tipado, política deny-by-default por janela, erros padronizados, auditoria (8 testes).
+- ✅ App Tauri real (`src-tauri`): único comando `ipc` → `Router::dispatch`; identidade = label da janela (não vem da UI); Isolation hook com allowlist; CSP; smoke test de 2 janelas (main permitido, untrusted bloqueado, desconhecido, args inválidos) passando no Windows
+- ✅ Hook rejeita nome inválido, comando >64 chars, args >64 KB, `plugin:fs|*` e `plugin:window|destroy` (testado via CDP)
+- ⏳ Rejeições do hook são descartadas **sem auditoria** (nunca chegam ao Rust). Decidir: aceitar, ou sinalizar ao core um evento de segurança
+- ⏳ Smoke test automatizado na CI (hoje manual: `SUPERAPP_SMOKE_OUT=... superapp.exe`) e auditoria em arquivo
+- ⏳ CSP: aviso de `style-src` inline vindo do Tauri/isolation; avaliar nonce/hash
+- ⚠️ `window.ipc` é reservado pelo WebView (wry); usar `window.host`
 - ⏳ E1.2 capabilities mínimas por janela + isolation hook que valida payload
 - ⏳ E1.3 shell + 2 micro-frontends · E1.4 binary IPC · E1.5 empacotamento/benchmarks
 

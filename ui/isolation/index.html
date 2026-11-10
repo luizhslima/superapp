@@ -1,0 +1,19 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>isolation</title></head>
+<body>
+<script>
+// Isolation Pattern: toda mensagem IPC passa por aqui antes de chegar ao core Rust.
+// Lista de permissão estrita: só o comando `ipc` com formato válido e eventos do Tauri.
+window.__TAURI_ISOLATION_HOOK__ = (payload) => {
+  const cmd = payload && payload.cmd;
+  if (typeof cmd === "string" && cmd.startsWith("plugin:event|")) return payload;
+  if (cmd === "ipc") {
+    const p = payload.payload || {};
+    const nameOk = typeof p.command === "string" && p.command.length <= 64 && /^[a-z0-9_.]+$/.test(p.command);
+    const argsOk = p.args === undefined || p.args === null || (typeof p.args === "object" && JSON.stringify(p.args).length <= 65536);
+    if (nameOk && argsOk) return payload;
+  }
+  throw new Error("mensagem IPC rejeitada pelo hook de isolamento");
+};
+</script>
+</body></html>

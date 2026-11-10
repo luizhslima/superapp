@@ -1,0 +1,14 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>untrusted</title></head>
+<body>
+  <script src="ipc.js"></script>
+  <script>
+    (async () => {
+      const bc = new BroadcastChannel("smoke");
+      await new Promise((r) => setTimeout(r, 1500));
+      const info = await window.host("app.info");
+      const echo = await window.host("app.echo", { text: "x" });
+      bc.postMessage({ info, echo });
+    })();
+  </script>
+</body></html>

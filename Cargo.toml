@@ -1,8 +1,8 @@
 [workspace]
 resolver = "2"
-members = ["crates/*", "xtask"]
+members = ["crates/*", "xtask", "src-tauri"]
 # Spikes são descartáveis e independentes (cada um com seu próprio Cargo.toml/target).
-exclude = ["spikes", "src-tauri"]
+exclude = ["spikes"]
 
 [workspace.package]
 version = "0.0.0"
