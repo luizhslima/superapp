@@ -207,7 +207,7 @@ fn check_report(report: &Value) -> bool {
             code(&b["unknown"]) == "not_found",
         ),
         (
-            "bytes: entrada > 16 MiB barrada",
+            "bytes: entrada > 1 MiB barrada pelo hook",
             code(&b["over_in"]) == "permission_denied",
         ),
         (

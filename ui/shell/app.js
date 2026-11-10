@@ -39,7 +39,7 @@ async function bytesTest() {
   const e2 = await window.hostBytes("blob.echo", mid);
   t.echo_1mib = e2.ok && e2.value.length === MiB && sum(e2.value) === sum(mid);
   t.unknown = await window.hostBytes("blob.nope", small);
-  t.over_in = await window.hostBytes("blob.echo", new Uint8Array(17 * MiB));
+  t.over_in = await window.hostBytes("blob.echo", new Uint8Array(2 * MiB)); // > 1 MiB: barrado pelo hook
   const asked = (n) => new Uint8Array(new Uint32Array([n]).buffer);
   t.over_out = await window.hostBytes("blob.gen", asked(32 * MiB));
   t.bad_gen = await window.hostBytes("blob.gen", new Uint8Array([1, 2]));
@@ -51,7 +51,7 @@ async function bytesTest() {
   t.gen_ok = g.ok && g.value.length === 10 * MiB;
   // Só envio (UI→host): escala com o tamanho? (linear = custo por byte; maior = custo fixo)
   t.up = {};
-  for (const mib of [0.0625, 0.25, 1, 2]) {
+  for (const mib of [0.0625, 0.25, 1]) {
     const buf = new Uint8Array(Math.round(mib * MiB));
     const t1 = performance.now();
     const r = await window.hostBytes("blob.sink", buf);
