@@ -1,0 +1,19 @@
+[package]
+name = "superapp-wasm-host"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+superapp-core = { path = "../core" }
+thiserror = "2"
+tracing = "0.1"
+tokio = { version = "1", features = ["time"] }
+wasmtime = "50"
+wasmtime-wasi = "50"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["rt", "macros", "time"] }

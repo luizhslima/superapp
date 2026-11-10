@@ -12,3 +12,4 @@ Formato: Status · Contexto · Decisão · Consequências · Alternativas · Ris
 | [006](ADR-006-capabilities-isolation.md) | Capabilities + Isolation Pattern | Accepted |
 | [007](ADR-007-cpp-optional-cxx.md) | C++ opcional via cxx | Proposed (adiado; S4 só se houver caso de uso) |
 | [008](ADR-008-monorepo-tooling.md) | Monorepo e tooling | Accepted (`cargo xtask`) |
+| [009](ADR-009-miniapp-ui.md) | UI de mini-apps | Accepted (declarativa no v0) |

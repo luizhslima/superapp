@@ -27,6 +27,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy, rustfmt
+          targets: wasm32-wasip2
       - uses: Swatinem/rust-cache@v2
       - run: cargo xtask ci
       # Smoke do app real (2 janelas, capabilities, hook de isolamento, auditoria).

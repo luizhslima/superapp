@@ -1,0 +1,30 @@
+package superapp:host@0.1.0;
+
+/// API do host para mini-apps, v0. Cada interface é uma permissão: o host só liga ao
+/// componente as que o manifesto concede. Importar uma interface não concedida faz a
+/// instanciação falhar (não existe "chamar e ser negado" em tempo de execução).
+
+interface log {
+  /// Registro de diagnóstico do mini-app (limitado em linhas e tamanho pelo host).
+  log: func(msg: string);
+}
+
+interface storage {
+  /// Armazenamento chave-valor isolado por mini-app, com quota.
+  get: func(key: string) -> option<list<u8>>;
+  set: func(key: string, value: list<u8>) -> result<_, string>;
+  delete: func(key: string) -> result<_, string>;
+}
+
+interface clock {
+  /// Milissegundos desde a época Unix.
+  now-ms: func() -> u64;
+}
+
+world miniapp {
+  import log;
+  import storage;
+  import clock;
+  /// Ponto de entrada único do v0: texto entra, texto sai. Erros do app vão em `err`.
+  export run: func(input: string) -> result<string, string>;
+}

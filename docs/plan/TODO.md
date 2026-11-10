@@ -63,6 +63,12 @@ Legenda: ⏳ pendente · 🔄 em andamento · ✅ feito · 🧊 bloqueado/adiado
   - **Meta de RAM (00-vision-scope.md)**: o host Rust sozinho fica em ~30 MB no Windows (dentro de 25–40 MB), mas o total com WebView2 é bem maior. Meta revisada: host ≤ 40 MB e WebView medido à parte. Medição confiável de memória real exige máquina física (Working Set privado), não RSS somado
   - Orçamento de "UI pronta" é só aviso (> 15 s): o CI sem GPU distorce o tempo
 
+## Fase 2 (em andamento)
+- ✅ Entrega 1: `crates/wasm-host` (E2.1 + parte do E2.2): engine com fuel obrigatório, concessão por interface WIT, limites de memória/tempo, storage isolado por mini-app, auditoria `app:<id>`, mini-app de exemplo `miniapps/counter`; 12 testes de ataque (loop, memória, FS/rede, timeout com host responsivo, import não concedido, path traversal, quota) em `cargo test`. Os guests compilam para `wasm32-wasip2` durante o teste (a CI instala o target)
+- ✅ ADR-009: UI de mini-apps declarativa no v0
+- ⏳ Entrega 2: pacote + manifesto + assinatura Ed25519 (E2.3) · entrega 3: ciclo de vida + consentimento + UI declarativa (E2.4) · entrega 4: SDK, 2º mini-app (C/Go) e suíte completa (E2.5/E2.6)
+- ⏳ Cache AOT em disco; integrar o `wasm-host` ao app Tauri (comando no Router) na entrega 3
+
 ## Fase 1: fechamento
 E1.1–E1.5 concluídos. Pendências que sobram (não bloqueiam): rotação do log de auditoria; medir S3/S5 e benchmark em máquinas reais (Linux local, macOS quando houver); instaladores nunca executados fora do Windows (CI só constrói); assinatura/notarização (Fase 5); meta de RAM **revisada** em `00-vision-scope.md` (host ≤ 40 MB; WebView medido à parte, ainda sem alvo).
 
