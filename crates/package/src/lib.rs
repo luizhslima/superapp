@@ -39,6 +39,56 @@ pub enum PackageError {
     InvalidManifest(String),
     #[error("o código não bate com o hash do manifesto")]
     HashMismatch,
+    #[error("possível segredo embutido no pacote: {0}")]
+    SecretFound(&'static str),
+}
+
+/// Procura segredos conhecidos embutidos em `data` (chaves privadas PEM e tokens de provedores
+/// comuns). Barato e conservador: pega o erro típico de autor (chave colada no código), não
+/// substitui uma análise de segredos de verdade. Devolve o nome de cada tipo encontrado.
+pub fn scan_secrets(data: &[u8]) -> Vec<&'static str> {
+    fn contains(hay: &[u8], needle: &[u8]) -> bool {
+        hay.windows(needle.len()).any(|w| w == needle)
+    }
+    // `prefix` seguido de pelo menos `min` caracteres alfanuméricos/`_`/`-`, e (opcional) com
+    // borda: o byte anterior ao prefixo não pode ser alfanumérico (evita "task-..." etc.).
+    fn token(hay: &[u8], prefix: &[u8], min: usize, boundary: bool) -> bool {
+        let mut i = 0;
+        while i + prefix.len() <= hay.len() {
+            if &hay[i..i + prefix.len()] == prefix {
+                let ok_boundary = !boundary || i == 0 || !hay[i - 1].is_ascii_alphanumeric();
+                let run = hay[i + prefix.len()..]
+                    .iter()
+                    .take_while(|b| b.is_ascii_alphanumeric() || **b == b'_')
+                    .count();
+                if ok_boundary && run >= min {
+                    return true;
+                }
+            }
+            i += 1;
+        }
+        false
+    }
+    let mut found = Vec::new();
+    if contains(data, b"-----BEGIN") && contains(data, b"PRIVATE KEY-----") {
+        found.push("chave privada PEM");
+    }
+    if token(data, b"AKIA", 16, true) {
+        found.push("chave de acesso AWS");
+    }
+    if token(data, b"ghp_", 36, true) || token(data, b"github_pat_", 22, true) {
+        found.push("token do GitHub");
+    }
+    if token(data, b"sk-", 32, true) {
+        found.push("chave de API (sk-...)");
+    }
+    if token(data, b"xoxb-", 10, true) || token(data, b"xoxp-", 10, true) {
+        found.push("token do Slack");
+    }
+    if token(data, b"AIza", 35, true) {
+        found.push("chave de API do Google");
+    }
+    found
 }
 
 /// Chaves públicas de autores em quem o host confia.
@@ -106,6 +156,9 @@ pub fn pack(key: &SigningKey, manifest: &Manifest, wasm: &[u8]) -> Result<Vec<u8
     let mut m = manifest.clone();
     m.wasm_sha256 = sha256_hex(wasm);
     m.validate()?;
+    if let Some(kind) = scan_secrets(wasm).into_iter().next() {
+        return Err(PackageError::SecretFound(kind));
+    }
     if wasm.len() > MAX_WASM_BYTES {
         return Err(PackageError::Malformed("wasm acima do teto"));
     }
@@ -406,6 +459,44 @@ mod tests {
                     Err(PackageError::InvalidManifest(_))
                 ),
                 "{json}"
+            );
+        }
+    }
+
+    #[test]
+    fn embedded_secrets_are_refused_at_pack_time() {
+        let k = key(7);
+        let aws = format!("\0asm....AKIA{}....", "A1B2C3D4E5F6G7H8");
+        let gh = format!("xx ghp_{} yy", "a".repeat(36));
+        let pem = "-----BEGIN RSA PRIVATE KEY-----\nMIIE...\n-----END RSA PRIVATE KEY-----";
+        let sk = format!("key=sk-{}", "Z".repeat(40));
+        for (blob, kind) in [
+            (aws.as_bytes(), "AWS"),
+            (gh.as_bytes(), "GitHub"),
+            (pem.as_bytes(), "PEM"),
+            (sk.as_bytes(), "sk-"),
+        ] {
+            let e = pack(&k, &manifest(), blob).unwrap_err();
+            assert!(
+                matches!(e, PackageError::SecretFound(m) if m.contains(kind)),
+                "{kind}: {e:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn secret_scanner_does_not_flag_ordinary_code() {
+        // "task-" / "disk-" não são chaves; tokens curtos demais também não.
+        for ok in [
+            "the task-runner-spawns-a-very-long-running-process-name".as_bytes(),
+            b"AKIA-too-short".as_slice(),
+            b"ghp_short".as_slice(),
+            b"\0asm\x01\0\0\0 normal wasm bytes \xff\xfe".as_slice(),
+        ] {
+            assert!(
+                scan_secrets(ok).is_empty(),
+                "{:?}",
+                String::from_utf8_lossy(ok)
             );
         }
     }

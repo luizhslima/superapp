@@ -1,26 +1,21 @@
-//! Mini-app de exemplo com UI declarativa (ADR-009): mostra um contador e um botão.
-//! Recebe eventos em JSON (`{"type":"init"}`, `{"type":"click","id":"inc"}`) e devolve a
-//! árvore de UI em JSON. Só precisa da permissão `storage`.
-wit_bindgen::generate!({ world: "miniapp", path: "../../crates/wasm-host/wit" });
-
-use superapp::host::storage;
+//! Mini-app de exemplo com UI declarativa, escrito com o SDK (ADR-009).
+//! Só usa `storage`, então só essa permissão é exigida.
+use superapp_sdk::{export_app, storage, ui, App, Event, Node};
 
 struct Clicker;
 
-impl Guest for Clicker {
-    fn run(input: String) -> Result<String, String> {
-        let mut n = storage::get("clicks")
-            .and_then(|b| String::from_utf8(b).ok())
-            .and_then(|s| s.parse::<u64>().ok())
-            .unwrap_or(0);
-        if input.contains("\"click\"") && input.contains("\"inc\"") {
+impl App for Clicker {
+    fn handle(event: Event) -> Result<Node, String> {
+        let mut n = storage::get_u64("clicks").unwrap_or(0);
+        if matches!(&event, Event::Click { id } if id == "inc") {
             n += 1;
-            storage::set("clicks", n.to_string().as_bytes())?;
+            storage::set_u64("clicks", n)?;
         }
-        Ok(format!(
-            r#"{{"type":"stack","children":[{{"type":"text","text":"Cliques: {n}"}},{{"type":"button","id":"inc","label":"Incrementar"}}]}}"#
-        ))
+        Ok(ui::stack(vec![
+            ui::text(format!("Cliques: {n}")),
+            ui::button("inc", "Incrementar"),
+        ]))
     }
 }
 
-export!(Clicker);
+export_app!(Clicker);

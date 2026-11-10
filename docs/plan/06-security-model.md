@@ -33,3 +33,32 @@ Dados do usuário (FS, credenciais), integridade do host, canal IPC, pacotes de 
 
 ## Suíte de ataques (gate da Fase 2)
 Loop infinito; alocação de memória ilimitada; leitura de FS fora do escopo; rede para host não declarado; chamada WIT não importada; manifesto adulterado; pacote com assinatura inválida; segredo embutido.
+
+### Resultado da suíte de ataques (Fase 2, 2026-11-10)
+Todos rodam em `cargo test` (e portanto na CI de Windows, Linux e macOS). "Contido" = erro claro ao usuário, host seguindo responsivo e outros mini-apps intactos.
+
+| Ataque | Onde é testado | Resultado |
+|---|---|---|
+| Loop infinito | `attacks::infinite_loop_is_stopped_by_fuel`, `ui_attacks::limits_requested_in_the_manifest...` | Contido por fuel em < 2 s (`OutOfFuel`) |
+| Guest só de CPU com fuel "infinito" | `attacks::cpu_only_guest_hits_timeout...` | Contido por timeout; executor de uma thread segue respondendo (≥ 10 ticks em 250 ms) |
+| Alocação de memória ilimitada | `attacks::memory_hog...`, `ui_attacks::limits...` | Contido (`OutOfMemory { limit_bytes }`), com o limite do manifesto aplicado |
+| FS e rede sem permissão | `attacks::fs_and_network_are_denied...` | Negados |
+| Import WIT não concedido | `attacks::import_not_granted...`, `packaged::code_importing_more...` | Falha ao **carregar**; auditado como `DeniedNoCapability` |
+| Aprovação maior que o manifesto | `packaged::approval_cannot_exceed...`, `lifecycle::approval_beyond...` | Recusada |
+| Manifesto adulterado / assinatura inválida / chave não confiável / troca de chave | `superapp-package` (14 testes) | Recusados antes de qualquer execução |
+| Wasm adulterado ou trocado | `package::tampered_wasm...`, `wasm_swapped...`, `packaged::tampered_real_package...` | `HashMismatch` |
+| Tamanho declarado absurdo (4 GiB), bytes sobrando/faltando | `package::malformed_containers...` | Recusado sem alocar |
+| Campo/permissão desconhecidos em manifesto assinado | `package::signed_manifest_with_unknown...` | Recusado |
+| **Segredo embutido** | `package::embedded_secrets_are_refused_at_pack_time` | `pack` recusa (PEM, AWS, GitHub, Slack, Google, `sk-`) |
+| Rollback de versão | `lifecycle::updates_must_increase_version...` | Recusado |
+| Chave de autor revogada | `lifecycle::untrusted_or_tampered...` | App instalado passa a "com problema" e não executa |
+| Pacote em disco adulterado após instalar | `lifecycle::untrusted_or_tampered...` | Detectado ao reabrir |
+| Path traversal em chave de storage / id de app | `attacks::dir_storage_blocks_path_traversal...`, `lifecycle::uninstall...` | Contido (chave vira hex; id restrito) |
+| Quota de storage | `attacks::storage_roundtrip...` | Recusada (valor > 1 MiB) |
+| UI maliciosa: HTML/script, campo de estilo, saída > 64 KiB, aninhamento, não-JSON, caractere de controle | `ui_attacks::malicious_ui_output...` | Todas recusadas (`InvalidUi`); nada é desenhado |
+| Falha (panic) do guest | `ui_attacks::panic_in_guest...` | Trap contido; host segue |
+| Um app malicioso afetando outro | `ui_attacks::a_misbehaving_app...` | Sem efeito (instâncias e dados separados) |
+| Vazamento de estado entre execuções | `ui_attacks::repeated_runs...` | Instância nova por execução |
+| Mini-app sem capability no shell (janela `untrusted`) chamando `apps.*` | smoke (`apps: janela sem capability...`) | `permission_denied` |
+
+**Limites conhecidos (não contidos nesta fase):** canais laterais de tempo (o relógio WASI existe para o guest); o detector de segredos pega só padrões conhecidos; sem revogação central de chaves nem auto-update (Fase 5).

@@ -3836,6 +3836,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "superapp-ui"
+version = "0.0.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "superapp-wasm-host"
 version = "0.0.0"
 dependencies = [
@@ -3844,6 +3852,7 @@ dependencies = [
  "serde_json",
  "superapp-core",
  "superapp-package",
+ "superapp-ui",
  "thiserror 2.0.21",
  "tokio",
  "tracing",

@@ -10,6 +10,7 @@ workspace = true
 [dependencies]
 superapp-core = { path = "../core" }
 superapp-package = { path = "../package" }
+superapp-ui = { path = "../ui" }
 thiserror = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

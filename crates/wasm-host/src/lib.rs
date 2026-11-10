@@ -10,7 +10,8 @@
 
 pub mod lifecycle;
 pub mod storage;
-pub mod ui;
+/// Catálogo de UI declarativa (definido em `superapp-ui`, compartilhado com o SDK).
+pub use superapp_ui as ui;
 
 use std::collections::BTreeSet;
 use std::sync::Arc;

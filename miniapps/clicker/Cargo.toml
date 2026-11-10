@@ -8,7 +8,7 @@ publish = false
 crate-type = ["cdylib"]
 
 [dependencies]
-wit-bindgen = "0.63"
+superapp-sdk = { path = "../sdk" }
 
 [profile.release]
 opt-level = "s"
