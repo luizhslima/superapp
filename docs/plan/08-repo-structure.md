@@ -11,7 +11,7 @@ superapp/
 ├─ crates/
 │  ├─ core/                  # IPC, capabilities, ciclo de vida
 │  ├─ miniapp-host/          # Wasmtime, loader, limites
-│  ├─ py-bridge/             # PyO3/Arrow (Fase 3, opcional)
+│  ├─ py-bridge/             # gestor do worker Python + Arrow IPC (Fase 3, opcional)
 │  └─ native-bridge/         # cxx/cxx-async (Fase 4, opcional)
 ├─ native/                   # código C++ + CMake (Fase 4)
 ├─ python/                   # pacotes Python do host (Fase 3)

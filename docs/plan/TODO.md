@@ -14,9 +14,9 @@ Legenda: ⏳ pendente · 🔄 em andamento · ✅ feito · 🧊 bloqueado/adiado
 - ⏳ S2 pendências: guest em C/Go, testar WASI 0.3 quando estabilizar, rodar em Linux/macOS
 - ✅ S1 (Windows): **no-go** subinterpretadores; adotado worker em processo filho + Arrow IPC. Ver [ADR-003](04-adrs/ADR-003-python-embedded-vs-sidecar.md)
 - ⏳ S1 pendências: medir latência/throughput do Arrow IPC com o worker (início da Fase 3); testar 3.13 free-threaded só se necessário; Linux/macOS
-- ⏳ Atualizar [01-architecture-overview.md](01-architecture-overview.md), [05-backlog-epics.md](05-backlog-epics.md) e `crates/py-bridge` para refletir worker externo (não PyO3)
 - 🧊 S4: cxx/cxx-async (só se a Fase 4 continuar no plano)
-- ⏳ Mover ADR-003/004/005/006/007 para *Accepted* (gate da Fase 0)
+- ✅ ADRs 003/004/005/008 → *Accepted*; 001/002/006 já estavam. **ADR-007 (C++) segue *Proposed* de propósito** (S4 adiado); o gate da Fase 0 deve aceitar essa exceção.
+- ✅ Arquitetura (01), backlog (05), estrutura (08) e README atualizados com as decisões de S1/S2/S3
 
 ## Validação multi-SO (pendente)
 - ⏳ **Linux**: rodar S3 e S5 na máquina Linux local (precisa de `webkit2gtk-4.1`, `libgtk-3-dev`, `libayatana-appindicator3-dev`). Registrar números no ADR-005 e no relatório do S5.
@@ -36,5 +36,5 @@ Legenda: ⏳ pendente · 🔄 em andamento · ✅ feito · 🧊 bloqueado/adiado
 
 ## Próximos passos (ordem)
 1. S3 + S5 no Linux
-2. Atualizar arquitetura/backlog com as decisões de S1/S2 e marcar ADRs como Accepted
-3. Gate da Fase 0 e reavaliação do roadmap
+2. Gate da Fase 0 (aceitando Windows-only + ADR-007 adiado, ou depois do Linux)
+3. Iniciar Fase 1 (casca segura) e reavaliação do roadmap

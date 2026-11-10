@@ -2,7 +2,7 @@
 
 Transforma a [investigação v1](../investigation-v1.md) em um plano executável para **dev solo + IA**, alvo **Windows, macOS e Linux**.
 
-**Status**: rascunho v0.1 · fase atual: pré-Fase 0
+**Status**: rascunho v0.2 · fase atual: Fase 0 (spikes concluídos no Windows; ver [TODO](TODO.md))
 
 ## Leitura recomendada (núcleo)
 1. [02 · Roadmap por fases](02-roadmap-phases.md)
@@ -25,7 +25,7 @@ Transforma a [investigação v1](../investigation-v1.md) em um plano executável
 | [TODO](TODO.md) | Pendências vivas, validação macOS/Linux, custo zero |
 
 ## Síntese das principais conclusões
-- A arquitetura da investigação é sólida, mas **otimista**: PyO3 multi-interpretador, WASI 0.3 e o custo de bundling do Python são os maiores riscos.
+- A arquitetura da investigação é sólida, mas **otimista**: os spikes S1–S3 confirmaram parte disso (PyO3 multi-interpretador refutado → worker Python externo; WASI 0.3 adiado → WASI 0.2; custo de bundling do Python segue alto).
 - Estratégia: **spikes primeiro**, depois fatias verticais: Host seguro → Mini-apps Wasm → Python → C++ (opcional).
 - Python e C++ são **módulos opcionais** para preservar a promessa de leveza.
 

@@ -1,8 +1,8 @@
 # ADR-005 · Binary IPC (Tauri) e Apache Arrow
 
-- **Status**: Proposed — validar em S3 (IPC) e S1 (Arrow)
+- **Status**: Accepted (2026-11-10) — S3 validado no Windows; Linux/macOS pendentes. Arrow: com worker externo (S1), usa-se Arrow IPC, não zero-copy em processo.
 - **Contexto**: Serialização JSON em IPC é custosa para payloads grandes. Investigação cita ganho de 5–10× com binário.
-- **Decisão**: Usar JSON apenas para controle; payloads grandes via Binary IPC (`ArrayBuffer`). Entre Rust e Python, Arrow zero-copy/DLPack quando embutido; Arrow IPC se worker externo.
+- **Decisão**: Usar JSON apenas para controle; payloads grandes via Binary IPC (`ArrayBuffer`). Entre Rust e Python, **Arrow IPC com worker externo** (decisão do ADR-003; zero-copy/DLPack só valeria com Python embutido, refutado em S1).
 - **Consequências**: (+) latência/CPU menores. (−) contratos binários exigem versionamento e validação rígida no Rust (tamanho/limites).
 - **Regra**: todo payload binário é validado (tamanho máximo, formato) antes de uso.
 - **Riscos**: R5.
