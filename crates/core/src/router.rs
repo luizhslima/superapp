@@ -14,8 +14,19 @@ struct Command {
     handler: Handler,
 }
 
+type BytesHandler = Box<dyn Fn(&Caller, &[u8]) -> Result<Vec<u8>, IpcError> + Send + Sync>;
+
+/// Comando de corpo binário (ex.: blobs, Arrow). Limites explícitos por comando.
+struct BytesCommand {
+    capability: String,
+    max_in: usize,
+    max_out: usize,
+    handler: BytesHandler,
+}
+
 pub struct Router {
     commands: HashMap<String, Command>,
+    bytes_commands: HashMap<String, BytesCommand>,
     policy: Policy,
     audit: Arc<dyn AuditSink>,
 }
@@ -24,6 +35,7 @@ impl Router {
     pub fn new(policy: Policy, audit: Arc<dyn AuditSink>) -> Self {
         Self {
             commands: HashMap::new(),
+            bytes_commands: HashMap::new(),
             policy,
             audit,
         }
@@ -53,6 +65,62 @@ impl Router {
                 handler,
             },
         );
+    }
+
+    /// Registra um comando binário com limites de entrada e de saída (em bytes).
+    pub fn register_bytes<F>(
+        &mut self,
+        name: &str,
+        capability: &str,
+        max_in: usize,
+        max_out: usize,
+        f: F,
+    ) where
+        F: Fn(&Caller, &[u8]) -> Result<Vec<u8>, IpcError> + Send + Sync + 'static,
+    {
+        self.bytes_commands.insert(
+            name.to_owned(),
+            BytesCommand {
+                capability: capability.to_owned(),
+                max_in,
+                max_out,
+                handler: Box::new(f),
+            },
+        );
+    }
+
+    /// Entrada binária. Mesma ordem do JSON: existe → autorizado → tamanho → executa
+    /// (e a saída também é limitada, para um handler com bug não despejar memória na UI).
+    pub fn dispatch_bytes(
+        &self,
+        caller: &Caller,
+        name: &str,
+        body: &[u8],
+    ) -> Result<Vec<u8>, IpcError> {
+        let Some(cmd) = self.bytes_commands.get(name) else {
+            self.record(caller, name, Decision::DeniedUnknownCommand);
+            return Err(IpcError::new(ErrorCode::NotFound, "comando desconhecido"));
+        };
+        if !self.policy.allows(caller, &cmd.capability) {
+            self.record(caller, name, Decision::DeniedNoCapability);
+            return Err(IpcError::new(ErrorCode::PermissionDenied, "não autorizado"));
+        }
+        if body.len() > cmd.max_in {
+            self.record(caller, name, Decision::DeniedTooLarge);
+            return Err(IpcError::new(ErrorCode::InvalidArgs, "corpo grande demais"));
+        }
+        self.record(caller, name, Decision::Allowed);
+        let out = (cmd.handler)(caller, body)?;
+        if out.len() > cmd.max_out {
+            self.record(caller, name, Decision::DeniedTooLarge);
+            tracing::error!(
+                command = name,
+                len = out.len(),
+                "resposta binária acima do limite"
+            );
+            return Err(IpcError::internal());
+        }
+        Ok(out)
     }
 
     /// Ponto único de entrada. Ordem: existe? → autorizado? → valida args → executa.

@@ -33,6 +33,77 @@ fn ipc(
 /// Comando reservado: o hook de isolamento reescreve nele toda mensagem que barra.
 const HOOK_REJECTED: &str = "HOOK_REJECTED";
 
+/// Limite de corpo binário (entrada e saída) dos comandos `blob.*`: 16 MiB.
+const BLOB_MAX: usize = 16 * 1024 * 1024;
+
+/// Canal binário: corpo cru (sem JSON/base64) e nome do comando no cabeçalho `command`.
+/// Mesma política do `ipc`: identidade = label da janela, decisão no Router.
+#[tauri::command]
+fn ipc_bytes(
+    window: tauri::WebviewWindow,
+    router: State<'_, Router>,
+    request: tauri::ipc::Request<'_>,
+) -> Result<tauri::ipc::Response, IpcError> {
+    let caller = Caller::new(window.label());
+    let command = request
+        .headers()
+        .get("command")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+    let tauri::ipc::InvokeBody::Raw(body) = request.body() else {
+        return Err(IpcError::new(
+            ErrorCode::InvalidArgs,
+            "corpo deve ser binário",
+        ));
+    };
+    router
+        .dispatch_bytes(&caller, command, body)
+        .map(tauri::ipc::Response::new)
+}
+
+/// Canal de corpos grandes por esquema de URI próprio (`sapp://localhost/<comando>`, POST).
+/// O Isolation Pattern cifra/serializa cada byte (~1 MiB/s medido), então blobs não passam
+/// por ele. A identidade continua vindo do Tauri (`webview_label`), a decisão continua no
+/// Router. Limite: o Tauri entrega o corpo inteiro em memória antes do handler.
+fn blob_protocol(
+    ctx: tauri::UriSchemeContext<'_, tauri::Wry>,
+    request: tauri::http::Request<Vec<u8>>,
+) -> tauri::http::Response<Vec<u8>> {
+    use tauri::http::{Method, Response, StatusCode};
+    let cors = |b: tauri::http::response::Builder| {
+        b.header("Access-Control-Allow-Origin", "*")
+            .header("Access-Control-Allow-Methods", "POST, OPTIONS")
+    };
+    if request.method() == Method::OPTIONS {
+        return cors(Response::builder())
+            .status(StatusCode::NO_CONTENT)
+            .body(Vec::new())
+            .expect("resposta");
+    }
+    let router = ctx.app_handle().state::<Router>();
+    let caller = Caller::new(ctx.webview_label());
+    let command = request.uri().path().trim_start_matches('/');
+    match router.dispatch_bytes(&caller, command, request.body()) {
+        Ok(out) => cors(Response::builder())
+            .status(StatusCode::OK)
+            .body(out)
+            .expect("resposta"),
+        Err(e) => {
+            let status = match e.code {
+                ErrorCode::NotFound => StatusCode::NOT_FOUND,
+                ErrorCode::PermissionDenied => StatusCode::FORBIDDEN,
+                ErrorCode::InvalidArgs => StatusCode::BAD_REQUEST,
+                ErrorCode::Internal => StatusCode::INTERNAL_SERVER_ERROR,
+            };
+            cors(Response::builder())
+                .status(status)
+                .header("Content-Type", "application/json")
+                .body(serde_json::to_vec(&e).unwrap_or_default())
+                .expect("resposta")
+        }
+    }
+}
+
 /// Sink que replica para o log estruturado e guarda em memória (usado só no modo smoke).
 struct Fanout(Vec<Arc<dyn AuditSink>>);
 impl AuditSink for Fanout {
@@ -64,6 +135,7 @@ fn build_router(smoke_out: Option<String>, app: tauri::AppHandle) -> Router {
         .grant("main", "app:read")
         .grant("untrusted", "none")
         .grant("main", "shell:manage")
+        .grant("main", "blob:use")
         .grant("mfe-a", "app:read")
         .grant("mfe-b", "app:read");
     if smoke_out.is_some() {
@@ -110,6 +182,19 @@ fn build_router(smoke_out: Option<String>, app: tauri::AppHandle) -> Router {
             Ok(Value::Null)
         },
     );
+    // Binários: eco e gerador (4 bytes LE = tamanho pedido). Usados para validar e medir o canal.
+    r.register_bytes("blob.echo", "blob:use", BLOB_MAX, BLOB_MAX, |_c, b| {
+        Ok(b.to_vec())
+    });
+    r.register_bytes("blob.sink", "blob:use", BLOB_MAX, 4, |_c, b| {
+        Ok((b.len() as u32).to_le_bytes().to_vec())
+    });
+    r.register_bytes("blob.gen", "blob:use", 4, BLOB_MAX, |_c, b| {
+        let n: [u8; 4] = b
+            .try_into()
+            .map_err(|_| IpcError::new(ErrorCode::InvalidArgs, "esperado u32 LE"))?;
+        Ok(vec![0xAB; u32::from_le_bytes(n) as usize])
+    });
     // Existe, mas nenhuma janela tem a capability: serve para provar o bloqueio.
     r.register("debug.privileged", "debug:privileged", |_c, _a: Value| {
         Ok(json!("segredo"))
@@ -135,7 +220,8 @@ pub fn run() {
     tracing_subscriber::fmt().with_target(false).init();
 
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![ipc])
+        .register_uri_scheme_protocol("sapp", blob_protocol)
+        .invoke_handler(tauri::generate_handler![ipc, ipc_bytes])
         .setup(|app| {
             let smoke_out = std::env::var("SUPERAPP_SMOKE_OUT").ok();
             app.manage(build_router(smoke_out.clone(), app.handle().clone()));

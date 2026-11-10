@@ -8,6 +8,8 @@ pub enum Decision {
     DeniedNoCapability,
     /// Mensagem barrada pelo hook de isolamento antes de chegar ao roteador.
     DeniedByHook,
+    /// Corpo binário acima do limite do comando (entrada) ou resposta acima do limite (saída).
+    DeniedTooLarge,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

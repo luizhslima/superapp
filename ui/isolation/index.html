@@ -13,6 +13,12 @@ window.__TAURI_ISOLATION_HOOK__ = (payload) => {
     const argsOk = p.args === undefined || p.args === null || (typeof p.args === "object" && JSON.stringify(p.args).length <= 65536);
     if (nameOk && argsOk) return payload;
   }
+  if (cmd === "ipc_bytes") {
+    const h = (payload.options && payload.options.headers) || {};
+    const name = h.command;
+    const size = payload.payload && (payload.payload.byteLength !== undefined ? payload.payload.byteLength : payload.payload.length);
+    if (typeof name === "string" && name.length <= 64 && /^[a-z0-9_.]+$/.test(name) && typeof size === "number" && size <= 16 * 1024 * 1024) return payload;
+  }
   // Em vez de descartar em silêncio (a promise da UI ficaria pendurada e nada seria auditado),
   // reescreve para o comando reservado HOOK_REJECTED. O nome tem maiúsculas, então a UI não
   // consegue produzi-lo: qualquer tentativa dela cai de novo nesta rejeição.

@@ -46,7 +46,12 @@ Legenda: ⏳ pendente · 🔄 em andamento · ✅ feito · 🧊 bloqueado/adiado
 - ⚠️ `window.ipc` é reservado pelo WebView (wry); usar `window.host`
 - ⏳ E1.2 capabilities mínimas por janela + isolation hook que valida payload
 - ✅ E1.3 shell + 2 micro-frontends (`mfe-a`, `mfe-b`) em janelas próprias: aberturas por `shell.open_mfe` (cap `shell:manage`, só ids `a`/`b`), cada MFE com só `app:read`, comunicação por `BroadcastChannel`. Com o A em laço infinito, o shell fala com o host em 2–8 ms e o B segue respondendo; 18/18 no smoke nos 3 SOs. Limite do teste: trava só a thread da página (`for(;;){}`), não mede consumo de memória nem crash do processo do WebView
-- ⏳ E1.4 binary IPC · E1.5 empacotamento/benchmarks
+- ✅ E1.4 binary IPC pelo Router (`register_bytes`/`dispatch_bytes`: capability + limite de entrada e de **saída** + auditoria `DeniedTooLarge`). Dois canais:
+  - `ipc_bytes` (Tauri IPC, passa pelo hook de Isolation): ok, mas **UI→host ~1 MiB/s** (2 MiB = 2,2 s; linear: custo por byte do Isolation).
+  - `sapp://localhost/<comando>` (esquema próprio, fora do hook; identidade = `webview_label`): **envio 10 MiB em ~155 ms (~65 MiB/s), ~85× mais rápido**. Usar este para corpos grandes.
+  - **Investigação dos ~110 MB/s (host→UI)**: 10 MiB em ~85–90 ms nos dois canais, com ou sem Isolation, e gerar o `Vec` custa ~1 ms. Logo o teto é o transporte do WebView2 (Windows), não o nosso código. Suficiente para a meta; dados maiores devem ir por arquivo/stream. Falta medir Linux/macOS (ver números da CI)
+  - Risco aceito: `sapp://` recebe o corpo inteiro em memória antes do Router checar o limite (o Tauri não expõe Content-Length antes). Só código do próprio app roda nas janelas; reavaliar quando houver conteúdo de terceiros em janelas
+- ⏳ E1.5 empacotamento/benchmarks
 
 ## Gate da Fase 0
 ✅ Aceito em 2026-11-10 (Windows-only, ADR-007 adiado). Dívida: Linux/macOS na Fase 1.

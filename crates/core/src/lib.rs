@@ -152,6 +152,63 @@ mod tests {
         let _ = std::fs::remove_file(&path);
     }
 
+    fn bytes_router() -> (Router, Arc<MemoryAudit>) {
+        let audit = Arc::new(MemoryAudit::default());
+        let mut r = Router::new(Policy::new().grant("main", "blob"), audit.clone());
+        // Eco que dobra o tamanho: permite provocar estouro do limite de saída.
+        r.register_bytes("blob.double", "blob", 16, 20, |_c, b| Ok([b, b].concat()));
+        (r, audit)
+    }
+
+    #[test]
+    fn bytes_roundtrip_and_audit() {
+        let (r, audit) = bytes_router();
+        let out = r
+            .dispatch_bytes(&Caller::new("main"), "blob.double", &[1, 2])
+            .unwrap();
+        assert_eq!(out, vec![1, 2, 1, 2]);
+        assert_eq!(audit.events()[0].decision, Decision::Allowed);
+    }
+
+    #[test]
+    fn bytes_denied_without_capability_or_unknown() {
+        let (r, audit) = bytes_router();
+        let e = r
+            .dispatch_bytes(&Caller::new("x"), "blob.double", &[1])
+            .unwrap_err();
+        assert_eq!(e.code, ErrorCode::PermissionDenied);
+        let e = r
+            .dispatch_bytes(&Caller::new("main"), "nope", &[1])
+            .unwrap_err();
+        assert_eq!(e.code, ErrorCode::NotFound);
+        assert_eq!(audit.events()[0].decision, Decision::DeniedNoCapability);
+        assert_eq!(audit.events()[1].decision, Decision::DeniedUnknownCommand);
+    }
+
+    #[test]
+    fn bytes_input_over_limit_is_rejected_before_handler() {
+        let (r, audit) = bytes_router();
+        let e = r
+            .dispatch_bytes(&Caller::new("main"), "blob.double", &[0; 17])
+            .unwrap_err();
+        assert_eq!(e.code, ErrorCode::InvalidArgs);
+        assert_eq!(audit.events()[0].decision, Decision::DeniedTooLarge);
+    }
+
+    #[test]
+    fn bytes_output_over_limit_is_internal_error() {
+        let (r, audit) = bytes_router();
+        // 11 bytes → 22 > 20.
+        let e = r
+            .dispatch_bytes(&Caller::new("main"), "blob.double", &[0; 11])
+            .unwrap_err();
+        assert_eq!(e.code, ErrorCode::Internal);
+        assert_eq!(
+            audit.events().last().unwrap().decision,
+            Decision::DeniedTooLarge
+        );
+    }
+
     #[test]
     fn ipc_error_serializes_with_stable_code() {
         let e = IpcError::new(ErrorCode::PermissionDenied, "x");

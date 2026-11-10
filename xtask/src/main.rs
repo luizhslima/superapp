@@ -93,6 +93,10 @@ fn smoke() -> bool {
     check_report(&report)
 }
 
+fn f_unknown(f: &Value) -> &Value {
+    &f["unknown"]
+}
+
 fn check_report(report: &Value) -> bool {
     let r = &report["results"];
     let code = |v: &Value| v["error"]["code"].as_str().unwrap_or("").to_owned();
@@ -155,6 +159,68 @@ fn check_report(report: &Value) -> bool {
         (
             "mfe: com A travado, B ainda responde no BroadcastChannel",
             m["pong_from"] == serde_json::json!(["b"]),
+        ),
+    ]);
+
+    let b = &r["bytes"];
+    println!("  ipc_bytes (com Isolation): gen 10 MiB {} ms", b["gen_ms"]);
+    println!("  bytes envio (ms): {}", b["up"]);
+    let f = &b["blob"];
+    println!(
+        "  sapp://: gen 10 MiB {} ms, echo 10 MiB {} ms, envio 10 MiB {} ms",
+        f["gen_ms"], f["echo_ms"], f["up_ms"]
+    );
+    checks.extend([
+        (
+            "sapp: round-trip 1 MiB e 10 MiB íntegros",
+            f["echo_1mib"] == true && f["gen_ok"] == true && f["echo10_ok"] == true,
+        ),
+        (
+            "sapp: desconhecido → not_found",
+            code(f_unknown(f)) == "not_found",
+        ),
+        (
+            "sapp: entrada > 16 MiB → invalid_args",
+            code(&f["over_in"]) == "invalid_args",
+        ),
+        (
+            "sapp: saída > 16 MiB → internal",
+            code(&f["over_out"]) == "internal",
+        ),
+        (
+            "sapp: argumento malformado → invalid_args",
+            code(&f["bad_gen"]) == "invalid_args",
+        ),
+        (
+            "sapp: untrusted negado",
+            code(&r["untrusted"]["blob"]) == "permission_denied",
+        ),
+    ]);
+    checks.extend([
+        (
+            "bytes: round-trip 4 B e 1 MiB íntegros",
+            b["echo_small"] == true && b["echo_1mib"] == true,
+        ),
+        ("bytes: 10 MiB gerados íntegros", b["gen_ok"] == true),
+        (
+            "bytes: comando desconhecido → not_found",
+            code(&b["unknown"]) == "not_found",
+        ),
+        (
+            "bytes: entrada > 16 MiB barrada",
+            code(&b["over_in"]) == "permission_denied",
+        ),
+        (
+            "bytes: saída > 16 MiB → internal",
+            code(&b["over_out"]) == "internal",
+        ),
+        (
+            "bytes: argumento malformado → invalid_args",
+            code(&b["bad_gen"]) == "invalid_args",
+        ),
+        (
+            "bytes: untrusted negado",
+            code(&r["untrusted"]["bytes"]) == "permission_denied",
         ),
     ]);
 

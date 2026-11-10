@@ -3,5 +3,5 @@
   "identifier": "main",
   "description": "Janelas da UI só podem chamar o comando `ipc`; o resto é decidido pelo Router do core.",
   "windows": ["main", "untrusted", "mfe-*"],
-  "permissions": ["allow-ipc", "core:event:default"]
+  "permissions": ["allow-ipc", "allow-ipc-bytes", "core:event:default"]
 }
