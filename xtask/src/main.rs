@@ -1,4 +1,4 @@
-﻿//! Orquestrador de tarefas do monorepo (ADR-008): `cargo xtask <comando>`.
+//! Orquestrador de tarefas do monorepo (ADR-008): `cargo xtask <comando>`.
 use serde_json::Value;
 use std::process::{exit, Command};
 use std::time::{Duration, Instant};
@@ -49,8 +49,8 @@ fn run(program: &str, args: &[&str]) -> bool {
         .unwrap_or(false)
 }
 
-/// Smoke test do app real: sobe o binÃ¡rio em modo smoke (duas janelas), espera o relatÃ³rio
-/// e confere as decisÃµes de seguranÃ§a (capabilities, hook de isolamento, auditoria).
+/// Smoke test do app real: sobe o binário em modo smoke (duas janelas), espera o relatório
+/// e confere as decisões de segurança (capabilities, hook de isolamento, auditoria).
 fn smoke() -> bool {
     if !run(
         "cargo",
@@ -67,7 +67,7 @@ fn smoke() -> bool {
     let _ = std::fs::remove_file(&out);
     println!("> {exe} (SUPERAPP_SMOKE_OUT={})", out.display());
     let Ok(mut child) = Command::new(exe).env("SUPERAPP_SMOKE_OUT", &out).spawn() else {
-        eprintln!("nÃ£o consegui iniciar {exe}");
+        eprintln!("não consegui iniciar {exe}");
         return false;
     };
     let deadline = Instant::now() + Duration::from_secs(90);
@@ -77,18 +77,18 @@ fn smoke() -> bool {
         }
         if Instant::now() > deadline {
             let _ = child.kill();
-            eprintln!("smoke: timeout de 90 s sem relatÃ³rio");
+            eprintln!("smoke: timeout de 90 s sem relatório");
             return false;
         }
         std::thread::sleep(Duration::from_millis(200));
     }
     let Ok(text) = std::fs::read_to_string(&out) else {
-        eprintln!("smoke: o app saiu sem gravar o relatÃ³rio");
+        eprintln!("smoke: o app saiu sem gravar o relatório");
         return false;
     };
     let _ = std::fs::remove_file(&out);
     let Ok(report) = serde_json::from_str::<Value>(&text) else {
-        eprintln!("smoke: relatÃ³rio invÃ¡lido: {text}");
+        eprintln!("smoke: relatório inválido: {text}");
         return false;
     };
     check_report(&report)
@@ -107,19 +107,19 @@ fn check_report(report: &Value) -> bool {
             r["echo_ok"]["ok"] == true && r["echo_ok"]["value"]["text"] == "oi",
         ),
         (
-            "args invÃ¡lidos â†’ invalid_args",
+            "args inválidos → invalid_args",
             code(&r["echo_invalid"]) == "invalid_args",
         ),
         (
-            "comando inexistente â†’ not_found",
+            "comando inexistente → not_found",
             code(&r["unknown"]) == "not_found",
         ),
         (
-            "sem capability â†’ permission_denied",
+            "sem capability → permission_denied",
             code(&r["privileged"]) == "permission_denied",
         ),
         (
-            "hook: nome invÃ¡lido barrado",
+            "hook: nome inválido barrado",
             code(&r["hook_bad_name"]) == "permission_denied",
         ),
         (
@@ -173,23 +173,23 @@ fn check_report(report: &Value) -> bool {
     );
     checks.extend([
         (
-            "sapp: round-trip 1 MiB e 10 MiB Ã­ntegros",
+            "sapp: round-trip 1 MiB e 10 MiB íntegros",
             f["echo_1mib"] == true && f["gen_ok"] == true && f["echo10_ok"] == true,
         ),
         (
-            "sapp: desconhecido â†’ not_found",
+            "sapp: desconhecido → not_found",
             code(f_unknown(f)) == "not_found",
         ),
         (
-            "sapp: entrada > 16 MiB â†’ invalid_args",
+            "sapp: entrada > 16 MiB → invalid_args",
             code(&f["over_in"]) == "invalid_args",
         ),
         (
-            "sapp: saÃ­da > 16 MiB â†’ internal",
+            "sapp: saída > 16 MiB → internal",
             code(&f["over_out"]) == "internal",
         ),
         (
-            "sapp: argumento malformado â†’ invalid_args",
+            "sapp: argumento malformado → invalid_args",
             code(&f["bad_gen"]) == "invalid_args",
         ),
         (
@@ -199,12 +199,12 @@ fn check_report(report: &Value) -> bool {
     ]);
     checks.extend([
         (
-            "bytes: round-trip 4 B e 1 MiB Ã­ntegros",
+            "bytes: round-trip 4 B e 1 MiB íntegros",
             b["echo_small"] == true && b["echo_1mib"] == true,
         ),
-        ("bytes: 10 MiB gerados Ã­ntegros", b["gen_ok"] == true),
+        ("bytes: 10 MiB gerados íntegros", b["gen_ok"] == true),
         (
-            "bytes: comando desconhecido â†’ not_found",
+            "bytes: comando desconhecido → not_found",
             code(&b["unknown"]) == "not_found",
         ),
         (
@@ -212,11 +212,11 @@ fn check_report(report: &Value) -> bool {
             code(&b["over_in"]) == "permission_denied",
         ),
         (
-            "bytes: saÃ­da > 16 MiB â†’ internal",
+            "bytes: saída > 16 MiB → internal",
             code(&b["over_out"]) == "internal",
         ),
         (
-            "bytes: argumento malformado â†’ invalid_args",
+            "bytes: argumento malformado → invalid_args",
             code(&b["bad_gen"]) == "invalid_args",
         ),
         (
@@ -245,11 +245,11 @@ fn check_report(report: &Value) -> bool {
             has("main", "nao.existe", "DeniedUnknownCommand"),
         ),
         (
-            "auditoria: rejeiÃ§Ã£o do hook (plugin)",
+            "auditoria: rejeição do hook (plugin)",
             has("main", "plugin:fs|read_text_file", "DeniedByHook"),
         ),
         (
-            "auditoria: rejeiÃ§Ã£o do hook (nome invÃ¡lido, sanitizado)",
+            "auditoria: rejeição do hook (nome inválido, sanitizado)",
             has("main", "Bad?Name?", "DeniedByHook"),
         ),
     ]);
@@ -260,12 +260,12 @@ fn check_report(report: &Value) -> bool {
         ok &= *pass;
     }
     if !ok {
-        eprintln!("relatÃ³rio completo: {report}");
+        eprintln!("relatório completo: {report}");
     }
     ok
 }
 
-/// Benchmark de release: tamanho do binÃ¡rio, tempo atÃ© a UI carregar e memÃ³ria (host + WebView).
+/// Benchmark de release: tamanho do binário, tempo até a UI carregar e memória (host + WebView).
 /// Imprime JSON e, se `GITHUB_STEP_SUMMARY` existir, anexa uma tabela Markdown.
 fn bench() -> bool {
     use sysinfo::{Pid, ProcessesToUpdate, System};
@@ -293,7 +293,7 @@ fn bench() -> bool {
     let out = std::env::temp_dir().join(format!("superapp-bench-{}.json", std::process::id()));
     let _ = std::fs::remove_file(&out);
     let Ok(mut child) = Command::new(exe).env("SUPERAPP_BENCH_OUT", &out).spawn() else {
-        eprintln!("nÃ£o consegui iniciar {exe}");
+        eprintln!("não consegui iniciar {exe}");
         return false;
     };
     let deadline = Instant::now() + Duration::from_secs(60);
@@ -305,7 +305,7 @@ fn bench() -> bool {
         }
         std::thread::sleep(Duration::from_millis(100));
     }
-    // Deixa a UI assentar e soma a memÃ³ria do app e de todos os descendentes (WebView).
+    // Deixa a UI assentar e soma a memória do app e de todos os descendentes (WebView).
     std::thread::sleep(Duration::from_secs(3));
     let startup_ms = std::fs::read_to_string(&out)
         .ok()
@@ -360,9 +360,9 @@ fn bench() -> bool {
                 f,
                 "### Benchmark ({})
 
-| mÃ©trica | valor |
+| métrica | valor |
 |---|---|
-| binÃ¡rio release | {} MB |
+| binário release | {} MB |
 | UI pronta | {} ms |
 | RAM host | {} MB |
 | RAM total (host + WebView, {} processos) | {} MB |
@@ -376,6 +376,6 @@ fn bench() -> bool {
             );
         }
     }
-    // OrÃ§amento frouxo de regressÃ£o (revisar com dados reais): UI pronta em < 15 s.
+    // Orçamento frouxo de regressão (revisar com dados reais): UI pronta em < 15 s.
     startup_ms > 0 && startup_ms < 15_000
 }
