@@ -51,6 +51,22 @@ Formato: hipótese → experimento → critério go/no-go → timebox. Resultado
 - **Experimento**: app mínimo; medir nos 3 SOs; comparar com tabela da investigação.
 - **Timebox**: 1 dia.
 
+## Resultados
+
+### S5 · Baseline de performance (Windows 11, WebView2 Edge 157, Tauri 2.12, release com LTO/strip) — 2026-11-10
+App mínimo de 1 janela em `spikes/s5-baseline/`. Start = do `Start-Process` até a página chamar o host (mediana de 5 execuções, 1ª descartada).
+
+| Métrica | Alvo | Medido | Veredito |
+|---|---|---|---|
+| Cold start | 0,3–0,8 s | **376 ms** (1ª execução fria: 558 ms) | ✅ dentro |
+| Tamanho do executável | instalador ~4–5 MB | **3,0 MB** (instalador não medido) | ✅ provável |
+| RAM ociosa (host + 6 processos WebView2) | 25–40 MB | **~310–330 MB** working set; **~150 MB** privada | ❌ muito acima |
+| Binary IPC vs JSON (S3) | 5–10× | 4,4–4,7× | ⚠️ pouco abaixo |
+
+- **Conclusão**: a meta de RAM da investigação não é realista se contada como o usuário vê no Gerenciador de Tarefas (o WebView2 sobe 6 processos). Ela só faria sentido para o processo host isolado, que **não foi medido separadamente**. **Ação**: redefinir a meta como "RAM total privada ≈ 150 MB por janela base" ou medir host e WebView separados, e documentar em [00-vision-scope.md](00-vision-scope.md).
+- Cada janela extra do WebView2 compartilha processos, mas adiciona RAM; medir na Fase 1 com o shell + 2 micro-frontends.
+- **Pendente**: Linux e macOS (ver [TODO](TODO.md)).
+
 ## Ordem sugerida
 
 S3 → S5 → S2 → S1 → S4 (S4 só se a Fase 4 permanecer no plano).

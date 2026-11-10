@@ -8,7 +8,8 @@ Legenda: ⏳ pendente · 🔄 em andamento · ✅ feito · 🧊 bloqueado/adiado
 - ✅ Instalar Rust (1.99.1, MSVC) e preparar toolchain
 - ✅ Scaffold do monorepo (Cargo workspace, xtask, pnpm, CI matriz)
 - ✅ S3 no **Windows**: go (4,4× com isolation). Ver [ADR-005](04-adrs/ADR-005-binary-ipc-arrow.md)
-- 🔄 S5: baseline de cold start/RAM/tamanho (Windows primeiro)
+- ✅ S5 no **Windows**: cold start 376 ms ✅, exe 3 MB ✅, RAM ~150 MB privada ❌ (meta 25–40 MB irreal). Ver [03](03-risks-and-spikes.md)
+- ⏳ Revisar a meta de RAM em [00-vision-scope.md](00-vision-scope.md) e medir host isolado vs WebView2
 - ⏳ S2: Wasmtime + Component Model + WASI
 - ⏳ S1: Python embutido (PyO3 + subinterpretadores)
 - 🧊 S4: cxx/cxx-async (só se a Fase 4 continuar no plano)
@@ -31,8 +32,7 @@ Legenda: ⏳ pendente · 🔄 em andamento · ✅ feito · 🧊 bloqueado/adiado
 - Telemetria/registro de mini-apps (Fase 5) precisará de hospedagem: avaliar GitHub Releases/Pages como registro estático.
 
 ## Próximos passos (ordem)
-1. S5 no Windows
-2. S3 + S5 no Linux
-3. S2 (Wasmtime)
-4. S1 (Python)
-5. Gate da Fase 0 e reavaliação do roadmap
+1. S3 + S5 no Linux
+2. S2 (Wasmtime)
+3. S1 (Python)
+4. Gate da Fase 0 e reavaliação do roadmap
