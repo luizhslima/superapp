@@ -22,6 +22,7 @@ Transforma a [investigação v1](../investigation-v1.md) em um plano executável
 | [07](07-quality-ci-release.md) | Testes, CI, release |
 | [08](08-repo-structure.md) | Layout do monorepo |
 | [09](09-working-with-ai.md) | Fluxo dev solo + IA |
+| [TODO](TODO.md) | Pendências vivas, validação macOS/Linux, custo zero |
 
 ## Síntese das principais conclusões
 - A arquitetura da investigação é sólida, mas **otimista**: PyO3 multi-interpretador, WASI 0.3 e o custo de bundling do Python são os maiores riscos.
