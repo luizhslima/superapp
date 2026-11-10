@@ -8,7 +8,9 @@
 //!   continua responsivo durante um laço do guest);
 //! - **toda chamada do guest ao host é auditada** com a identidade `app:<id>`.
 
+pub mod lifecycle;
 pub mod storage;
+pub mod ui;
 
 use std::collections::BTreeSet;
 use std::sync::Arc;

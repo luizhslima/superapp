@@ -11,6 +11,8 @@ workspace = true
 superapp-core = { path = "../core" }
 superapp-package = { path = "../package" }
 thiserror = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 tracing = "0.1"
 tokio = { version = "1", features = ["time"] }
 wasmtime = "50"
