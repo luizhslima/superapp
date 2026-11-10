@@ -24,8 +24,7 @@ Legenda: ⏳ pendente · 🔄 em andamento · ✅ feito · 🧊 bloqueado/adiado
   - S3 (BroadcastChannel + binary IPC com isolation em WKWebView), S5, empacotamento, assinatura/notarização.
   - Alternativa gratuita enquanto isso: runner `macos-latest` do GitHub Actions (grátis em repo **público**; sem GUI interativa, mas serve para build, testes e talvez smoke test headless). Requer criar o remoto no GitHub.
 - ✅ Remoto `luizhslima/superapp` com `main` publicada; **CI verde em Linux, Windows e macOS** (cargo xtask ci, 45 s)
-- ⚠️ O repo é **privado**: no plano gratuito do GitHub são 2.000 min/mês, com multiplicador **2× Windows e 10× macOS**. Cada push custa ~1+2+10 min-equivalentes por minuto de job. Mitigar: `paths-ignore` para docs, cancelar runs antigas (já feito), rodar macOS só em PR/main; ou tornar o repo público (minutos grátis ilimitados) quando não houver nada sensível.
-- ⏳ Decidir: manter privado (e otimizar CI) ou tornar público
+- ✅ Repo agora **público** (2026-11-10): minutos de CI gratuitos, inclusive macOS. Cuidado: nunca commitar segredos (varredura inicial limpa).
 
 ## Dívidas técnicas conhecidas
 - ⏳ S3: o IPC binário rodou a ~110 MB/s para 10 MB. Investigar se o gargalo é a geração do `Vec` por chamada ou o transporte do Tauri antes de usar como teto.
@@ -41,5 +40,4 @@ Legenda: ⏳ pendente · 🔄 em andamento · ✅ feito · 🧊 bloqueado/adiado
 
 ## Próximos passos (ordem)
 1. **Fase 1**: E1.1 core Rust + roteador IPC → E1.2 capabilities/isolation → E1.3 shell multi-janela → E1.4 binary IPC → E1.5 empacotamento
-2. Otimizar a CI para repo privado (paths-ignore em docs/**, macOS só em main/PR)
 3. Rodar S3/S5 no Linux local quando conveniente
