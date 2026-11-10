@@ -2,7 +2,7 @@
 
 Transforma a [investigação v1](../investigation-v1.md) em um plano executável para **dev solo + IA**, alvo **Windows, macOS e Linux**.
 
-**Status**: rascunho v0.2 · fase atual: Fase 0 (spikes concluídos no Windows; ver [TODO](TODO.md))
+**Status**: rascunho v0.2 · fase atual: **Fase 1 (Casca Segura)**; gate da Fase 0 aceito com ressalvas (ver [02](02-roadmap-phases.md) e [TODO](TODO.md))
 
 ## Leitura recomendada (núcleo)
 1. [02 · Roadmap por fases](02-roadmap-phases.md)

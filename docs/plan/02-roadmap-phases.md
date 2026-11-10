@@ -17,6 +17,8 @@ flowchart LR
 - **Entregáveis**: monorepo ([08-repo-structure.md](08-repo-structure.md)); CI mínima nos 3 SOs; spikes S3, S5, S2, S1 (S4 se C++ continuar); ADRs atualizados.
 - **Gate**: cada spike com decisão go/no-go registrada; ADR-003/004/005/006/007 em status *Accepted*.
 
+> **Gate da Fase 0: ✅ aceito em 2026-11-10 com ressalvas.** Spikes S1, S2, S3 e S5 com go/no-go registrados (só Windows); ADRs 003/004/005/008 *Accepted*; ADR-007 e S4 (C++) adiados por decisão. **Dívida assumida**: Linux e macOS não validados; devem ser cobertos na Fase 1 (E1.5 exige E2E nos 3 SOs). Linux na máquina local; macOS via CI `macos-latest` (repo público) até haver hardware. Ver [TODO](TODO.md).
+
 ## Fase 1 · Casca Segura — MVP do host (~4–6 sem)
 - **Objetivo**: host Tauri v2 seguro, multi-janela, com IPC binário.
 - **Entregáveis**: core Rust com roteador IPC; capabilities e escopos; Isolation Pattern; shell + 2 micro-frontends de exemplo; BroadcastChannel; Binary IPC; CSP; empacotamento instalável nos 3 SOs; benchmarks automatizados.

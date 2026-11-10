@@ -34,7 +34,10 @@ Legenda: ⏳ pendente · 🔄 em andamento · ✅ feito · 🧊 bloqueado/adiado
 - Assinatura de código (Windows) e notarização (Apple Developer, US$ 99/ano) **não** são gratuitas: adiar para a Fase 5 e distribuir sem assinatura no beta (R10).
 - Telemetria/registro de mini-apps (Fase 5) precisará de hospedagem: avaliar GitHub Releases/Pages como registro estático.
 
+## Gate da Fase 0
+✅ Aceito em 2026-11-10 (Windows-only, ADR-007 adiado). Dívida: Linux/macOS na Fase 1.
+
 ## Próximos passos (ordem)
-1. S3 + S5 no Linux
-2. Gate da Fase 0 (aceitando Windows-only + ADR-007 adiado, ou depois do Linux)
-3. Iniciar Fase 1 (casca segura) e reavaliação do roadmap
+1. **Fase 1**: E1.1 core Rust + roteador IPC → E1.2 capabilities/isolation → E1.3 shell multi-janela → E1.4 binary IPC → E1.5 empacotamento
+2. Criar remoto GitHub público e ligar a CI (Linux/Windows/macOS) já no início da Fase 1
+3. Rodar S3/S5 no Linux local quando conveniente
