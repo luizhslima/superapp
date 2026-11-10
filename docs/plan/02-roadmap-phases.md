@@ -24,6 +24,8 @@ flowchart LR
 - **Entregáveis**: core Rust com roteador IPC; capabilities e escopos; Isolation Pattern; shell + 2 micro-frontends de exemplo; BroadcastChannel; Binary IPC; CSP; empacotamento instalável nos 3 SOs; benchmarks automatizados.
 - **Gate**: cold start, RAM e tamanho medidos e dentro de tolerância das metas (ou metas revisadas com justificativa); E2E verde nos 3 SOs; comando IPC fora de escopo é bloqueado e logado.
 
+> **Gate da Fase 1: ✅ aceito em 2026-11-10.** E2E (smoke 31 verificações) verde nos 3 SOs em CI; comando fora de escopo é bloqueado e auditado; metas de cold start/RAM/tamanho medidas e **revisadas com justificativa** em [00-vision-scope.md](00-vision-scope.md). Ressalvas: números de Linux/macOS vêm de runners de CI (sem GPU), não de hardware real; instaladores de Linux/macOS só foram construídos, não executados; sem assinatura (Fase 5).
+
 ## Fase 2 · Plataforma de Mini-Apps Wasm (~5–7 sem)
 - **Objetivo**: executar código de terceiros com isolamento forte.
 - **Entregáveis**: Wasmtime embutido; WIT da API do host (v0); fuel e limites de memória; formato de pacote + manifesto de permissões + assinatura; loader e ciclo de vida (instalar/executar/suspender/remover); SDK mínimo; 2 mini-apps de exemplo (Rust + outra linguagem); UI de consentimento de permissões.

@@ -30,16 +30,18 @@ Um **superapp desktop híbrido** (Windows, macOS, Linux) que funciona como plata
 | **Dev de mini-app** | SDK/WIT estável, poliglota (Rust/C/C++/Go), ciclo de dev rápido, manifesto de permissões simples. |
 | **Dev do host (você + IA)** | Monorepo previsível, CI nos 3 SOs, contratos versionados, testes de segurança. |
 
-## Métricas-alvo (a validar)
+## Métricas-alvo
 
-| Métrica | Alvo (investigação) | Observação |
-|---|---|---|
-| Cold start | 0,3–0,8 s | Medir em cada SO, máquina de referência fixa |
-| RAM ociosa | 25–40 MB | Sem Python carregado |
-| Instalador base | ~4–5 MB | **Sem** CPython; Python como módulo opcional |
-| Cold start de mini-app Wasm | < 1 ms (AOT) | Medir instanciação, não compilação |
-| Memória por mini-app | 1–10 MB | Com limites configuráveis |
-| Binary IPC vs JSON | 5–10× em payloads grandes | Benchmark com 100k triângulos / 10 MB |
+Revisadas no fechamento da Fase 1 (2026-11-10) com medições reais (Windows local; Linux/macOS só em runners de CI). Os alvos originais da investigação ficam na coluna da esquerda para rastreabilidade.
+
+| Métrica | Alvo original | Medido na Fase 1 | Alvo revisado |
+|---|---|---|---|
+| Cold start (UI pronta) | 0,3–0,8 s | Windows 0,5–4 s (varia com cache do WebView2); macOS CI ~5,4 s; Linux CI ~32 s (xvfb, sem GPU) | **≤ 1,5 s com WebView2 aquecido** em máquina física. Valores de CI são só informativos (aviso > 15 s). Medir cold real em máquina de referência |
+| RAM ociosa | 25–40 MB | Host Rust **25–30 MB** (Windows). Soma de RSS do WebView2 ~350 MB (superestima: páginas compartilhadas contadas várias vezes) | **Host ≤ 40 MB**. WebView medido **separadamente** (working set privado, máquina física); sem alvo até haver medição confiável. A meta original só vale para o host |
+| Instalador base | ~4–5 MB | NSIS 1,9 MB · dmg 2,9 MB · deb 3,0 MB · **AppImage 78 MB** (embute libs) | **≤ 5 MB** (NSIS/dmg/deb). AppImage fora da meta por construção |
+| Cold start de mini-app Wasm | < 1 ms (AOT) | ~36 µs (S2, `InstancePre`) | Mantido: < 1 ms |
+| Memória por mini-app | 1–10 MB | Não medido (Fase 2) | Mantido, com limite configurável por manifesto |
+| Binary IPC | 5–10× vs JSON em payloads grandes | Host→UI 10 MiB em ~14–120 ms conforme SO (teto ~110 MiB/s é do WebView2/Windows). **UI→host com Isolation ~1 MiB/s** | Mantido para host→UI. Para UI→host: `ipc_bytes` ≤ 1 MiB; acima disso, `sapp://` (~65 MiB/s no Windows, ~85× mais rápido). Ver ADR-005/006 |
 
 ## Critério de sucesso do MVP
 

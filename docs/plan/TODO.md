@@ -60,11 +60,11 @@ Legenda: ⏳ pendente · 🔄 em andamento · ✅ feito · 🧊 bloqueado/adiado
   | macOS | dmg 2,9 MB (aarch64) | 9,9 MB | ~94 MB (WKWebView fica fora da árvore; subestima) | ~5,4 s |
 
   *Soma de RSS dos processos: superestima (páginas compartilhadas contadas várias vezes). Só o NSIS foi gerado e **não instalado** localmente (instalar altera o registro do usuário). Instaladores dos outros SOs não foram executados, só construídos.
-  - **Meta de RAM (00-vision-scope.md)**: o host Rust sozinho fica em ~30 MB no Windows (dentro de 25–40 MB), mas o total com WebView2 é bem maior. Rever a meta para medir "host" e "WebView" separadamente. Medição confiável de memória real exige máquina física (Working Set privado), não RSS somado
+  - **Meta de RAM (00-vision-scope.md)**: o host Rust sozinho fica em ~30 MB no Windows (dentro de 25–40 MB), mas o total com WebView2 é bem maior. Meta revisada: host ≤ 40 MB e WebView medido à parte. Medição confiável de memória real exige máquina física (Working Set privado), não RSS somado
   - Orçamento de "UI pronta" é só aviso (> 15 s): o CI sem GPU distorce o tempo
 
 ## Fase 1: fechamento
-E1.1–E1.5 concluídos. Pendências que sobram (não bloqueiam): rotação do log de auditoria; medir S3/S5 e benchmark em máquinas reais (Linux local, macOS quando houver); instaladores nunca executados fora do Windows (CI só constrói); assinatura/notarização (Fase 5); revisar a meta de RAM em `00-vision-scope.md`.
+E1.1–E1.5 concluídos. Pendências que sobram (não bloqueiam): rotação do log de auditoria; medir S3/S5 e benchmark em máquinas reais (Linux local, macOS quando houver); instaladores nunca executados fora do Windows (CI só constrói); assinatura/notarização (Fase 5); meta de RAM **revisada** em `00-vision-scope.md` (host ≤ 40 MB; WebView medido à parte, ainda sem alvo).
 
 ## Gate da Fase 0
 ✅ Aceito em 2026-11-10 (Windows-only, ADR-007 adiado). Dívida: Linux/macOS na Fase 1.
