@@ -41,7 +41,7 @@ Legenda: ⏳ pendente · 🔄 em andamento · ✅ feito · 🧊 bloqueado/adiado
 - ✅ Hook rejeita nome inválido, comando >64 chars, args >64 KB, `plugin:fs|*` e `plugin:window|destroy` (testado via CDP)
 - ✅ Rejeições do hook agora são **auditadas** (`DeniedByHook`): o hook reescreve a mensagem barrada para o comando reservado `HOOK_REJECTED` (maiúsculas: a UI não consegue produzi-lo) e o host registra o nome tentado, truncado em 64 chars e sanitizado. A promise da UI deixa de ficar pendurada: recebe `permission_denied`
 - ✅ Auditoria persistente: `FileAudit` grava JSONL em `<log_dir>/audit.jsonl` (Windows: `%LOCALAPPDATA%\dev.superapp.app\logs`). Pendente: rotação/limite de tamanho
-- ✅ Smoke automatizado: `cargo xtask smoke` (14 verificações) passa no Windows; adicionado à CI (Linux via xvfb). Resultado em Linux/macOS: ver abaixo
+- ✅ Smoke automatizado: `cargo xtask smoke` (14 verificações) passa **nos 3 SOs na CI** (Windows, Linux via xvfb, macOS), 14/14. Isso valida o hook de isolamento, a CSP, o `BroadcastChannel` entre janelas e a política por janela em WebKitGTK e WKWebView. Dívida restante de hardware: macOS real (desempenho/empacotamento) e S3/S5 fora do Windows
 - ✅ CSP: o aviso vinha do estilo inline que o Tauri aplica no iframe de isolamento; liberado só o hash exato via `'unsafe-hashes'` (sem `unsafe-inline`). Console limpo
 - ⚠️ `window.ipc` é reservado pelo WebView (wry); usar `window.host`
 - ⏳ E1.2 capabilities mínimas por janela + isolation hook que valida payload
