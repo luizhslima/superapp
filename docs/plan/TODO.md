@@ -35,6 +35,11 @@ Legenda: ⏳ pendente · 🔄 em andamento · ✅ feito · 🧊 bloqueado/adiado
 - Assinatura de código (Windows) e notarização (Apple Developer, US$ 99/ano) **não** são gratuitas: adiar para a Fase 5 e distribuir sem assinatura no beta (R10).
 - Telemetria/registro de mini-apps (Fase 5) precisará de hospedagem: avaliar GitHub Releases/Pages como registro estático.
 
+## Fase 1 (em andamento)
+- ✅ E1.1 `superapp-core`: roteador IPC tipado, política deny-by-default por janela, erros padronizados, auditoria (8 testes). **Falta** ligar ao Tauri (comando único que chama `Router::dispatch`) e usar `TracingAudit` com arquivo.
+- ⏳ E1.2 capabilities mínimas por janela + isolation hook que valida payload
+- ⏳ E1.3 shell + 2 micro-frontends · E1.4 binary IPC · E1.5 empacotamento/benchmarks
+
 ## Gate da Fase 0
 ✅ Aceito em 2026-11-10 (Windows-only, ADR-007 adiado). Dívida: Linux/macOS na Fase 1.
 
