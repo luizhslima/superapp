@@ -45,7 +45,8 @@ Legenda: ⏳ pendente · 🔄 em andamento · ✅ feito · 🧊 bloqueado/adiado
 - ✅ CSP: o aviso vinha do estilo inline que o Tauri aplica no iframe de isolamento; liberado só o hash exato via `'unsafe-hashes'` (sem `unsafe-inline`). Console limpo
 - ⚠️ `window.ipc` é reservado pelo WebView (wry); usar `window.host`
 - ⏳ E1.2 capabilities mínimas por janela + isolation hook que valida payload
-- ⏳ E1.3 shell + 2 micro-frontends · E1.4 binary IPC · E1.5 empacotamento/benchmarks
+- ✅ E1.3 shell + 2 micro-frontends (`mfe-a`, `mfe-b`) em janelas próprias: aberturas por `shell.open_mfe` (cap `shell:manage`, só ids `a`/`b`), cada MFE com só `app:read`, comunicação por `BroadcastChannel`. Com o A em laço infinito, o shell fala com o host em 2–8 ms e o B segue respondendo; 18/18 no smoke nos 3 SOs. Limite do teste: trava só a thread da página (`for(;;){}`), não mede consumo de memória nem crash do processo do WebView
+- ⏳ E1.4 binary IPC · E1.5 empacotamento/benchmarks
 
 ## Gate da Fase 0
 ✅ Aceito em 2026-11-10 (Windows-only, ADR-007 adiado). Dívida: Linux/macOS na Fase 1.
