@@ -62,7 +62,10 @@ fn build_router(smoke_out: Option<String>, app: tauri::AppHandle) -> Router {
     // Zero privilégio: cada janela recebe só o que precisa. "untrusted" nunca recebe nada.
     let mut policy = Policy::new()
         .grant("main", "app:read")
-        .grant("untrusted", "none");
+        .grant("untrusted", "none")
+        .grant("main", "shell:manage")
+        .grant("mfe-a", "app:read")
+        .grant("mfe-b", "app:read");
     if smoke_out.is_some() {
         policy = policy.grant("main", "smoke");
     }
@@ -78,6 +81,33 @@ fn build_router(smoke_out: Option<String>, app: tauri::AppHandle) -> Router {
         |_c, a: serde_json::Map<String, Value>| match a.get("text").and_then(Value::as_str) {
             Some(t) if t.len() <= 1024 => Ok(json!({ "text": t })),
             _ => Err(IpcError::new(ErrorCode::InvalidArgs, "text inválido")),
+        },
+    );
+    // Abre um micro-frontend em janela própria. Só ids da lista fixa (nada vindo da UI vira label).
+    let handle = app.clone();
+    r.register(
+        "shell.open_mfe",
+        "shell:manage",
+        move |_c, a: serde_json::Map<String, Value>| {
+            let id = match a.get("id").and_then(Value::as_str) {
+                Some(i @ ("a" | "b")) => i.to_owned(),
+                _ => return Err(IpcError::new(ErrorCode::InvalidArgs, "id inválido")),
+            };
+            let h = handle.clone();
+            // Criar janela dentro de comando síncrono trava no Windows: faz em outra thread.
+            std::thread::spawn(move || {
+                let res = WebviewWindowBuilder::new(
+                    &h,
+                    format!("mfe-{id}"),
+                    WebviewUrl::App(format!("mfe-{id}.html").into()),
+                )
+                .title(format!("mfe {id}"))
+                .build();
+                if let Err(e) = res {
+                    tracing::error!(error = %e, "falha ao abrir micro-frontend");
+                }
+            });
+            Ok(Value::Null)
         },
     );
     // Existe, mas nenhuma janela tem a capability: serve para provar o bloqueio.

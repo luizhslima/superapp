@@ -135,6 +135,29 @@ fn check_report(report: &Value) -> bool {
         ),
     ];
 
+    let m = &r["mfe"];
+    println!("  mfe: {m}");
+    checks.extend([
+        (
+            "mfe: abre a e b (id fora da lista recusado)",
+            m["open_a"]["ok"] == true
+                && m["open_b"]["ok"] == true
+                && code(&m["open_bad"]) == "invalid_args",
+        ),
+        (
+            "mfe: a e b ficam prontos",
+            m["ready"] == serde_json::json!(["a", "b"]),
+        ),
+        (
+            "mfe: com A travado, o shell ainda fala com o host",
+            m["shell_rpc"]["ok"] == true && m["shell_rpc_ms"].as_u64().unwrap_or(u64::MAX) < 1000,
+        ),
+        (
+            "mfe: com A travado, B ainda responde no BroadcastChannel",
+            m["pong_from"] == serde_json::json!(["b"]),
+        ),
+    ]);
+
     let audit = report["audit"].as_array().cloned().unwrap_or_default();
     let has = |window: &str, command: &str, decision: &str| {
         audit
