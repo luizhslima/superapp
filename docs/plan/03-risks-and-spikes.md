@@ -67,6 +67,9 @@ App mínimo de 1 janela em `spikes/s5-baseline/`. Start = do `Start-Process` at�
 - Cada janela extra do WebView2 compartilha processos, mas adiciona RAM; medir na Fase 1 com o shell + 2 micro-frontends.
 - **Pendente**: Linux e macOS (ver [TODO](TODO.md)).
 
+### S2 · Wasmtime + Component Model — 2026-11-10 (Windows)
+**Go parcial.** Instanciação ~36 µs, fuel e limite de memória contidos, FS/rede negados sem permissão. Usar WASI 0.2 + async no host; WASI 0.3 não testado. Detalhes e ressalvas no [ADR-004](04-adrs/ADR-004-wasm-miniapps.md).
+
 ## Ordem sugerida
 
 S3 → S5 → S2 → S1 → S4 (S4 só se a Fase 4 permanecer no plano).

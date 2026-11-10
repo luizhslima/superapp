@@ -1,0 +1,16 @@
+package spike:host;
+
+interface host-api {
+  log: func(msg: string);
+  /// Import que o host implementa de forma async (simula I/O).
+  slow-add: func(a: u32, b: u32) -> u32;
+}
+
+world miniapp {
+  import host-api;
+  export run: func(n: u32) -> u32;
+  export spin: func();
+  export hog: func(mb: u32) -> u32;
+  export try-fs: func() -> string;
+  export try-net: func() -> string;
+}
