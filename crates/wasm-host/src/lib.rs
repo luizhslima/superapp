@@ -19,6 +19,7 @@ use wasmtime::{Config, Engine, ResourceLimiter, Store, Trap};
 use wasmtime_wasi::{WasiCtx, WasiCtxBuilder, WasiCtxView, WasiView};
 
 pub use storage::{DirStorage, MemoryStorage, Storage};
+use superapp_package::{manifest, Permission, VerifiedPackage};
 
 wasmtime::component::bindgen!({
     world: "miniapp",
@@ -69,6 +70,20 @@ impl Grants {
     pub fn has(&self, i: Interface) -> bool {
         self.0.contains(&i)
     }
+    /// Todas as interfaces deste conjunto estão em `other`?
+    pub fn is_subset_of(&self, other: &Grants) -> bool {
+        self.0.is_subset(&other.0)
+    }
+    /// Concessão correspondente às permissões pedidas num manifesto.
+    pub fn from_permissions(perms: &[Permission]) -> Self {
+        perms.iter().fold(Self::none(), |g, p| {
+            g.with(match p {
+                Permission::Log => Interface::Log,
+                Permission::Storage => Interface::Storage,
+                Permission::Clock => Interface::Clock,
+            })
+        })
+    }
 }
 
 /// Limites de uma execução. Os padrões são conservadores.
@@ -86,6 +101,26 @@ impl Default for Limits {
             memory_bytes: 16 * 1024 * 1024,
             timeout: Duration::from_secs(5),
         }
+    }
+}
+
+impl Limits {
+    /// Limites pedidos pelo manifesto sobre os padrões. O manifesto já foi validado contra
+    /// os tetos do host; o `min` é só um cinto de segurança.
+    pub fn from_manifest(m: &superapp_package::Manifest) -> Self {
+        let mut l = Self::default();
+        if let Some(r) = &m.limits {
+            if let Some(f) = r.fuel {
+                l.fuel = f.min(manifest::MAX_FUEL);
+            }
+            if let Some(mb) = r.memory_mb {
+                l.memory_bytes = mb.min(manifest::MAX_MEMORY_MB) as usize * 1024 * 1024;
+            }
+            if let Some(ms) = r.timeout_ms {
+                l.timeout = Duration::from_millis(u64::from(ms.min(manifest::MAX_TIMEOUT_MS)));
+            }
+        }
+        l
     }
 }
 
@@ -228,6 +263,24 @@ impl Runtime {
         cfg.consume_fuel(true); // obrigatório: sem isso um laço do guest nunca é interrompido
         let engine = Engine::new(&cfg).map_err(|e| WasmError::Load(e.to_string()))?;
         Ok(Self { engine, audit })
+    }
+
+    /// Carrega um pacote já verificado. `approved` é o que o usuário consentiu e nunca pode
+    /// passar do que o manifesto pediu. Como só o aprovado é ligado, um código que importe
+    /// mais do que o manifesto declarou falha em `ImportNotGranted`.
+    pub fn load_verified(
+        &self,
+        pkg: &VerifiedPackage,
+        approved: &Grants,
+        storage: Arc<dyn Storage>,
+    ) -> Result<MiniApp, WasmError> {
+        let requested = Grants::from_permissions(&pkg.manifest.permissions);
+        if !approved.is_subset_of(&requested) {
+            return Err(WasmError::Load(
+                "concessão maior que a pedida no manifesto".into(),
+            ));
+        }
+        self.load(&pkg.manifest.id, &pkg.wasm, approved, storage)
     }
 
     /// Compila o componente e liga só as interfaces concedidas. Falha se o componente

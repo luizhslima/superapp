@@ -272,3 +272,116 @@ async fn example_counter_persists_between_runs_and_needs_only_log_and_storage() 
         .unwrap();
     assert!(matches!(err, WasmError::ImportNotGranted(_)));
 }
+
+// ---- E2.3: pacote assinado de ponta a ponta -------------------------------------------
+
+mod packaged {
+    use super::*;
+    use ed25519_dalek::SigningKey;
+    use superapp_package::{
+        pack, verify, Manifest, PackageError, Permission, RequestedLimits, TrustStore,
+    };
+
+    fn author() -> SigningKey {
+        SigningKey::from_bytes(&[42; 32])
+    }
+
+    fn trust() -> TrustStore {
+        TrustStore::new(vec![author().verifying_key().to_bytes()])
+    }
+
+    fn manifest(id: &str, perms: Vec<Permission>) -> Manifest {
+        Manifest {
+            schema: 1,
+            id: id.into(),
+            name: "Counter".into(),
+            version: "1.0.0".into(),
+            permissions: perms,
+            wasm_sha256: String::new(),
+            limits: None,
+        }
+    }
+
+    fn counter_wasm() -> Vec<u8> {
+        guest(root().join("miniapps/counter"), "counter.wasm")
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn signed_package_verifies_loads_and_runs() {
+        let (rt, _) = setup();
+        let m = manifest("counter", vec![Permission::Log, Permission::Storage]);
+        let bytes = pack(&author(), &m, &counter_wasm()).unwrap();
+        let pkg = verify(&bytes, &trust()).unwrap();
+        let approved = Grants::from_permissions(&pkg.manifest.permissions);
+        let app = rt
+            .load_verified(&pkg, &approved, Arc::new(MemoryStorage::default()))
+            .unwrap();
+        let out = app
+            .run("", &Limits::from_manifest(&pkg.manifest))
+            .await
+            .unwrap();
+        assert_eq!(out.output, "execuções: 1");
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn code_importing_more_than_the_manifest_declares_is_refused() {
+        // O mini-app usa `storage`, mas o manifesto só declara `log`: mesmo assinado e com
+        // tudo aprovado, não carrega (o usuário nunca viu a permissão de storage).
+        let (rt, _) = setup();
+        let m = manifest("counter", vec![Permission::Log]);
+        let pkg = verify(&pack(&author(), &m, &counter_wasm()).unwrap(), &trust()).unwrap();
+        let approved = Grants::from_permissions(&pkg.manifest.permissions);
+        let err = rt
+            .load_verified(&pkg, &approved, Arc::new(MemoryStorage::default()))
+            .err()
+            .unwrap();
+        assert!(matches!(err, WasmError::ImportNotGranted(_)));
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn approval_cannot_exceed_what_the_manifest_requested() {
+        let (rt, _) = setup();
+        let m = manifest("counter", vec![Permission::Log, Permission::Storage]);
+        let pkg = verify(&pack(&author(), &m, &counter_wasm()).unwrap(), &trust()).unwrap();
+        let err = rt
+            .load_verified(&pkg, &Grants::all(), Arc::new(MemoryStorage::default()))
+            .err()
+            .unwrap();
+        assert!(matches!(err, WasmError::Load(m) if m.contains("maior")));
+    }
+
+    #[test]
+    fn tampered_real_package_never_reaches_the_runtime() {
+        let m = manifest("counter", vec![Permission::Log, Permission::Storage]);
+        let mut bytes = pack(&author(), &m, &counter_wasm()).unwrap();
+        let last = bytes.len() - 1;
+        bytes[last] ^= 0xff;
+        assert_eq!(
+            verify(&bytes, &trust()).unwrap_err(),
+            PackageError::HashMismatch
+        );
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn manifest_limits_are_applied_to_execution() {
+        let (rt, _) = setup();
+        let mut m = manifest(
+            "attack",
+            vec![Permission::Log, Permission::Storage, Permission::Clock],
+        );
+        m.limits = Some(RequestedLimits {
+            fuel: Some(2_000_000),
+            ..Default::default()
+        });
+        let pkg = verify(&pack(&author(), &m, &attack_wasm()).unwrap(), &trust()).unwrap();
+        let approved = Grants::from_permissions(&pkg.manifest.permissions);
+        let app = rt
+            .load_verified(&pkg, &approved, Arc::new(MemoryStorage::default()))
+            .unwrap();
+        let e = app
+            .run("spin", &Limits::from_manifest(&pkg.manifest))
+            .await
+            .unwrap_err();
+        assert_eq!(e, WasmError::OutOfFuel);
+    }
+}

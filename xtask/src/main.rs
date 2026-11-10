@@ -12,8 +12,11 @@ fn main() {
         "ci" => run("cargo", &["fmt", "--all", "--check"]) && lint() && test(),
         "smoke" => smoke(),
         "bench" => bench(),
+        "keygen" => keygen(),
+        "pack" => pack_cmd(),
+        "verify" => verify_cmd(),
         _ => {
-            eprintln!("uso: cargo xtask <fmt|lint|test|ci|smoke|bench>");
+            eprintln!("uso: cargo xtask <fmt|lint|test|ci|smoke|bench|keygen|pack|verify>");
             exit(2);
         }
     };
@@ -386,4 +389,119 @@ fn bench() -> bool {
         println!("bench: AVISO: UI pronta em {startup_ms} ms (> 15 s)");
     }
     startup_ms > 0
+}
+
+// ---- Pacotes de mini-app (ADR-010) -------------------------------------------------------
+
+/// `cargo xtask keygen <arquivo>`: cria uma chave privada (semente em hex) e imprime a pública.
+/// Nunca sobrescreve. Arquivos `*.key` são ignorados pelo git: não os versione.
+fn keygen() -> bool {
+    let Some(path) = std::env::args().nth(2) else {
+        eprintln!("uso: cargo xtask keygen <arquivo.key>");
+        return false;
+    };
+    if std::path::Path::new(&path).exists() {
+        eprintln!("{path} já existe; recuso sobrescrever");
+        return false;
+    }
+    let mut seed = [0u8; 32];
+    if getrandom::fill(&mut seed).is_err() {
+        eprintln!("sem fonte de aleatoriedade do SO");
+        return false;
+    }
+    let key = ed25519_dalek::SigningKey::from_bytes(&seed);
+    if std::fs::write(&path, superapp_package::to_hex(&seed)).is_err() {
+        eprintln!("não consegui gravar {path}");
+        return false;
+    }
+    println!("chave privada: {path} (guarde com cuidado)");
+    println!(
+        "chave pública (cole em trusted-keys.txt): {}",
+        superapp_package::to_hex(key.verifying_key().as_bytes())
+    );
+    true
+}
+
+fn load_key(path: &str) -> Option<ed25519_dalek::SigningKey> {
+    let text = std::fs::read_to_string(path).ok()?;
+    let seed = superapp_package::parse_hex32(text.trim())?;
+    Some(ed25519_dalek::SigningKey::from_bytes(&seed))
+}
+
+/// `cargo xtask pack <app.wasm> <manifest.json> <chave.key> <saida.sapp>`
+fn pack_cmd() -> bool {
+    let a: Vec<String> = std::env::args().skip(2).collect();
+    let [wasm, manifest, key, out] = a.as_slice() else {
+        eprintln!("uso: cargo xtask pack <app.wasm> <manifest.json> <chave.key> <saida.sapp>");
+        return false;
+    };
+    let (Ok(wasm), Ok(mtext)) = (std::fs::read(wasm), std::fs::read_to_string(manifest)) else {
+        eprintln!("não consegui ler o wasm ou o manifesto");
+        return false;
+    };
+    let Some(key) = load_key(key) else {
+        eprintln!("chave privada inválida (esperado 64 hex)");
+        return false;
+    };
+    let manifest: superapp_package::Manifest = match serde_json::from_str(&mtext) {
+        Ok(m) => m,
+        Err(e) => {
+            eprintln!("manifesto inválido: {e}");
+            return false;
+        }
+    };
+    match superapp_package::pack(&key, &manifest, &wasm) {
+        Ok(bytes) => {
+            if std::fs::write(out, &bytes).is_err() {
+                eprintln!("não consegui gravar {out}");
+                return false;
+            }
+            println!(
+                "{out}: {} bytes, assinado por {}",
+                bytes.len(),
+                superapp_package::to_hex(key.verifying_key().as_bytes())
+            );
+            true
+        }
+        Err(e) => {
+            eprintln!("falha ao empacotar: {e}");
+            false
+        }
+    }
+}
+
+/// `cargo xtask verify <pacote.sapp> <trusted-keys.txt>`
+fn verify_cmd() -> bool {
+    let a: Vec<String> = std::env::args().skip(2).collect();
+    let [pkg, trust] = a.as_slice() else {
+        eprintln!("uso: cargo xtask verify <pacote.sapp> <trusted-keys.txt>");
+        return false;
+    };
+    let (Ok(bytes), Ok(ttext)) = (std::fs::read(pkg), std::fs::read_to_string(trust)) else {
+        eprintln!("não consegui ler os arquivos");
+        return false;
+    };
+    let store = match superapp_package::TrustStore::from_hex_lines(&ttext) {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("{e}");
+            return false;
+        }
+    };
+    match superapp_package::verify(&bytes, &store) {
+        Ok(v) => {
+            println!(
+                "OK: {} {} ({} bytes de wasm)",
+                v.manifest.id,
+                v.manifest.version,
+                v.wasm.len()
+            );
+            println!("permissões: {:?}", v.manifest.permissions);
+            true
+        }
+        Err(e) => {
+            eprintln!("REPROVADO: {e}");
+            false
+        }
+    }
 }

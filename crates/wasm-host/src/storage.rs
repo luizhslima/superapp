@@ -66,14 +66,8 @@ pub struct DirStorage {
     dir: PathBuf,
 }
 
-/// Id de mini-app aceito como nome de diretório: `[a-z0-9-]{1,32}`.
-pub fn valid_app_id(id: &str) -> bool {
-    !id.is_empty()
-        && id.len() <= 32
-        && id
-            .bytes()
-            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
-}
+/// Id de mini-app aceito como nome de diretório: `[a-z0-9-]{1,32}` (definido no pacote).
+pub use superapp_package::valid_app_id;
 
 fn hex(s: &str) -> String {
     s.bytes().map(|b| format!("{b:02x}")).collect()

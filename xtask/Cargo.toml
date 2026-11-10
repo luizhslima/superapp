@@ -9,4 +9,7 @@ workspace = true
 
 [dependencies]
 serde_json = "1"
+superapp-package = { path = "../crates/package" }
+ed25519-dalek = "2"
+getrandom = "0.3"
 sysinfo = { version = "0.33", default-features = false, features = ["system"] }

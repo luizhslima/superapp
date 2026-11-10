@@ -66,7 +66,9 @@ Legenda: ⏳ pendente · 🔄 em andamento · ✅ feito · 🧊 bloqueado/adiado
 ## Fase 2 (em andamento)
 - ✅ Entrega 1: `crates/wasm-host` (E2.1 + parte do E2.2): engine com fuel obrigatório, concessão por interface WIT, limites de memória/tempo, storage isolado por mini-app, auditoria `app:<id>`, mini-app de exemplo `miniapps/counter`; 12 testes de ataque (loop, memória, FS/rede, timeout com host responsivo, import não concedido, path traversal, quota) em `cargo test`. Os guests compilam para `wasm32-wasip2` durante o teste (a CI instala o target)
 - ✅ ADR-009: UI de mini-apps declarativa no v0
-- ⏳ Entrega 2: pacote + manifesto + assinatura Ed25519 (E2.3) · entrega 3: ciclo de vida + consentimento + UI declarativa (E2.4) · entrega 4: SDK, 2º mini-app (C/Go) e suíte completa (E2.5/E2.6)
+- ✅ Entrega 2 (E2.3): `crates/package` (container `.sapp`, manifesto estrito, Ed25519 + SHA-256, `TrustStore`), `Runtime::load_verified` (aprovado ⊆ declarado; import além do declarado é recusado), `cargo xtask keygen|pack|verify`. Testes: 12 no crate + 5 de ponta a ponta com o `counter` real. Cobrem manifesto adulterado, wasm adulterado/trocado, assinatura corrompida, chave não confiável, troca de chave pública, assinatura sem prefixo de domínio, tamanhos absurdos (4 GiB) e bytes sobrando/faltando, campo/permissão desconhecidos e limites acima do teto. ADR-010
+- ⏳ Pendente do pacote: anti-rollback de versão, revogação/rotação de chaves, onde fica a `trusted-keys.txt` do app (decidir na entrega 3)
+- ⏳ Entrega 3: ciclo de vida + consentimento + UI declarativa (E2.4) · entrega 4: SDK, 2º mini-app (C/Go) e suíte completa (E2.5/E2.6)
 - ⏳ Cache AOT em disco; integrar o `wasm-host` ao app Tauri (comando no Router) na entrega 3
 
 ## Fase 1: fechamento

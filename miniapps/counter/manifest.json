@@ -1,0 +1,7 @@
+{
+  "schema": 1,
+  "id": "counter",
+  "name": "Counter",
+  "version": "0.1.0",
+  "permissions": ["log", "storage"]
+}

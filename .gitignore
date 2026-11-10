@@ -10,3 +10,6 @@ dist/
 target-iso/
 **/gen/
 .venv/
+
+# Chaves privadas de assinatura de mini-apps: nunca versionar.
+*.key
