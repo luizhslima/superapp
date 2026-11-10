@@ -12,7 +12,9 @@ Legenda: ⏳ pendente · 🔄 em andamento · ✅ feito · 🧊 bloqueado/adiado
 - ⏳ Revisar a meta de RAM em [00-vision-scope.md](00-vision-scope.md) e medir host isolado vs WebView2
 - ✅ S2 (Windows): go parcial, WASI 0.2 + async no host. Ver [ADR-004](04-adrs/ADR-004-wasm-miniapps.md)
 - ⏳ S2 pendências: guest em C/Go, testar WASI 0.3 quando estabilizar, rodar em Linux/macOS
-- ⏳ S1: Python embutido (PyO3 + subinterpretadores)
+- ✅ S1 (Windows): **no-go** subinterpretadores; adotado worker em processo filho + Arrow IPC. Ver [ADR-003](04-adrs/ADR-003-python-embedded-vs-sidecar.md)
+- ⏳ S1 pendências: medir latência/throughput do Arrow IPC com o worker (início da Fase 3); testar 3.13 free-threaded só se necessário; Linux/macOS
+- ⏳ Atualizar [01-architecture-overview.md](01-architecture-overview.md), [05-backlog-epics.md](05-backlog-epics.md) e `crates/py-bridge` para refletir worker externo (não PyO3)
 - 🧊 S4: cxx/cxx-async (só se a Fase 4 continuar no plano)
 - ⏳ Mover ADR-003/004/005/006/007 para *Accepted* (gate da Fase 0)
 
@@ -34,5 +36,5 @@ Legenda: ⏳ pendente · 🔄 em andamento · ✅ feito · 🧊 bloqueado/adiado
 
 ## Próximos passos (ordem)
 1. S3 + S5 no Linux
-2. S1 (Python)
+2. Atualizar arquitetura/backlog com as decisões de S1/S2 e marcar ADRs como Accepted
 3. Gate da Fase 0 e reavaliação do roadmap

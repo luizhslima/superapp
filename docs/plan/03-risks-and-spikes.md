@@ -70,6 +70,9 @@ App mínimo de 1 janela em `spikes/s5-baseline/`. Start = do `Start-Process` at�
 ### S2 · Wasmtime + Component Model — 2026-11-10 (Windows)
 **Go parcial.** Instanciação ~36 µs, fuel e limite de memória contidos, FS/rede negados sem permissão. Usar WASI 0.2 + async no host; WASI 0.3 não testado. Detalhes e ressalvas no [ADR-004](04-adrs/ADR-004-wasm-miniapps.md).
 
+### S1 · Python embutido — 2026-11-10 (Windows)
+**No-go para subinterpretadores embutidos.** 2,53× com 4 subinterpretadores, mas `numpy`/`pyarrow` não carregam; 4 processos dão 3,34× com as libs funcionando. R1 confirmado. Decisão: worker em processo filho + Arrow IPC ([ADR-003](04-adrs/ADR-003-python-embedded-vs-sidecar.md)).
+
 ## Ordem sugerida
 
 S3 → S5 → S2 → S1 → S4 (S4 só se a Fase 4 permanecer no plano).
