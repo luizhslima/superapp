@@ -108,4 +108,5 @@ async function smoke() {
   const info = await window.host("app.info");
   out.textContent = info.ok ? `host v${info.value.version}` : `erro: ${info.error.message}`;
   if (info.ok && info.value.smoke) await smoke();
+  if (info.ok && info.value.bench) await window.host("bench.ready");
 })();

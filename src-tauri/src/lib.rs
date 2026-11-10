@@ -114,7 +114,12 @@ impl AuditSink for Fanout {
     }
 }
 
-fn build_router(smoke_out: Option<String>, app: tauri::AppHandle) -> Router {
+fn build_router(
+    smoke_out: Option<String>,
+    bench_out: Option<String>,
+    start: std::time::Instant,
+    app: tauri::AppHandle,
+) -> Router {
     let memory = Arc::new(MemoryAudit::default());
     let mut sinks: Vec<Arc<dyn AuditSink>> =
         vec![Arc::new(TracingAudit), memory.clone() as Arc<dyn AuditSink>];
@@ -138,14 +143,18 @@ fn build_router(smoke_out: Option<String>, app: tauri::AppHandle) -> Router {
         .grant("main", "blob:use")
         .grant("mfe-a", "app:read")
         .grant("mfe-b", "app:read");
+    if bench_out.is_some() {
+        policy = policy.grant("main", "bench");
+    }
     if smoke_out.is_some() {
         policy = policy.grant("main", "smoke");
     }
 
     let mut r = Router::new(policy, audit);
     let smoke = smoke_out.is_some();
+    let bench = bench_out.is_some();
     r.register("app.info", "app:read", move |_c, _a: Value| {
-        Ok(json!({ "version": superapp_core::VERSION, "smoke": smoke }))
+        Ok(json!({ "version": superapp_core::VERSION, "smoke": smoke, "bench": bench }))
     });
     r.register(
         "app.echo",
@@ -200,6 +209,15 @@ fn build_router(smoke_out: Option<String>, app: tauri::AppHandle) -> Router {
         Ok(json!("segredo"))
     });
 
+    // Modo benchmark: a UI avisa que carregou; grava o tempo desde o início do processo.
+    // O app continua vivo para o xtask medir memória, e é encerrado por ele.
+    if let Some(path) = bench_out {
+        r.register("bench.ready", "bench", move |_c, _a: Value| {
+            let ms = start.elapsed().as_millis();
+            let _ = std::fs::write(&path, json!({ "startup_ms": ms }).to_string());
+            Ok(Value::Null)
+        });
+    }
     if let Some(path) = smoke_out {
         r.register("smoke.report", "smoke", move |_c, a: Value| {
             let events: Vec<Value> = memory
@@ -217,14 +235,21 @@ fn build_router(smoke_out: Option<String>, app: tauri::AppHandle) -> Router {
 }
 
 pub fn run() {
+    let start = std::time::Instant::now();
     tracing_subscriber::fmt().with_target(false).init();
 
     tauri::Builder::default()
         .register_uri_scheme_protocol("sapp", blob_protocol)
         .invoke_handler(tauri::generate_handler![ipc, ipc_bytes])
-        .setup(|app| {
+        .setup(move |app| {
             let smoke_out = std::env::var("SUPERAPP_SMOKE_OUT").ok();
-            app.manage(build_router(smoke_out.clone(), app.handle().clone()));
+            let bench_out = std::env::var("SUPERAPP_BENCH_OUT").ok();
+            app.manage(build_router(
+                smoke_out.clone(),
+                bench_out,
+                start,
+                app.handle().clone(),
+            ));
             if smoke_out.is_some() {
                 // Janela sem nenhuma capability, só no modo smoke.
                 WebviewWindowBuilder::new(
