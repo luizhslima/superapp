@@ -10,7 +10,9 @@
       const echo = await window.host("app.echo", { text: "x" });
       const bytes = await window.hostBytes("blob.echo", new Uint8Array([1]));
       const blob = await window.hostBlob("blob.echo", new Uint8Array([1]));
-      bc.postMessage({ info, echo, bytes, blob });
+      const apps = await window.host("apps.list");
+      const appsRun = await window.host("apps.dispatch", { id: "clicker", event: { type: "init" } });
+      bc.postMessage({ info, echo, bytes, blob, apps, appsRun });
     })();
   </script>
 </body></html>

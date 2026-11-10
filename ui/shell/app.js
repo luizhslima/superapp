@@ -101,12 +101,44 @@ async function smoke() {
   r.untrusted = await untrusted;
   r.mfe = await mfeTest();
   r.bytes = await bytesTest();
+  r.apps = await appsTest();
   await window.host("smoke.report", r);
+}
+
+// E2.4: instalação com consentimento, execução com UI declarativa, suspensão e remoção,
+// do pacote assinado preparado pelo xtask (chega como se tivesse sido arrastado).
+async function appsTest() {
+  const t = {};
+  const pend = await window.host("apps.pending");
+  t.pending = pend.ok ? pend.value.length : -1;
+  if (t.pending !== 1) return t;
+  const { token, preview } = pend.value[0];
+  t.preview = preview;
+  t.bad_token = await window.host("apps.install", { token: "nao-existe", approved: [] });
+  t.bad_perm = await window.host("apps.install", { token, approved: ["root"] });
+  t.exceed = await window.host("apps.install", { token, approved: ["storage", "clock"] });
+  t.install = await window.host("apps.install", { token, approved: ["storage"] });
+  const ev = (event) => window.host("apps.dispatch", { id: "clicker", event });
+  t.init = await ev({ type: "init" });
+  await ev({ type: "click", id: "inc" });
+  t.click = await ev({ type: "click", id: "inc" });
+  t.bad_event = await ev({ type: "click", id: "../x" });
+  t.suspend = await window.host("apps.set_enabled", { id: "clicker", enabled: false });
+  t.suspended_run = await ev({ type: "init" });
+  await window.host("apps.set_enabled", { id: "clicker", enabled: true });
+  t.resumed = await ev({ type: "init" });
+  t.list = await window.host("apps.list");
+  t.uninstall = await window.host("apps.uninstall", { id: "clicker", keep_data: false });
+  t.after = await window.host("apps.list");
+  t.gone = await ev({ type: "init" });
+  t.pending_after = (await window.host("apps.pending")).value.length;
+  return t;
 }
 
 (async () => {
   const info = await window.host("app.info");
   out.textContent = info.ok ? `host v${info.value.version}` : `erro: ${info.error.message}`;
+  if (info.ok && !info.value.smoke && !info.value.bench) await window.initAppsUi();
   if (info.ok && info.value.smoke) await smoke();
   if (info.ok && info.value.bench) await window.host("bench.ready");
 })();

@@ -1,18 +1,21 @@
 //! Host Tauri: encaminha todo comando da UI para o `Router` do core.
+mod apps;
+
 use serde_json::{json, Value};
 use std::sync::Arc;
 use superapp_core::{
     AuditEvent, AuditSink, Caller, ErrorCode, FileAudit, IpcError, MemoryAudit, Policy, Router,
     TracingAudit,
 };
-use tauri::{Manager, State, WebviewUrl, WebviewWindowBuilder};
+use tauri::{Emitter, Manager, State, WebviewUrl, WebviewWindowBuilder};
 
-/// Único comando exposto à UI. A identidade (`window.label()`) vem do Tauri, não do payload:
-/// a UI não consegue se passar por outra janela.
+/// Comando principal exposto à UI. A identidade (`window.label()`) vem do Tauri, não do
+/// payload: a UI não consegue se passar por outra janela. É assíncrono e despacha numa thread
+/// de bloqueio: comandos lentos (como rodar um mini-app) não congelam a thread da UI.
 #[tauri::command]
-fn ipc(
+async fn ipc(
     window: tauri::WebviewWindow,
-    router: State<'_, Router>,
+    router: State<'_, Arc<Router>>,
     command: String,
     args: Option<Value>,
 ) -> Result<Value, IpcError> {
@@ -27,7 +30,11 @@ fn ipc(
         router.audit_hook_rejection(&caller, attempted);
         return Err(IpcError::new(ErrorCode::PermissionDenied, "não autorizado"));
     }
-    router.dispatch(&caller, &command, args.unwrap_or(Value::Null))
+    let router = router.inner().clone();
+    let args = args.unwrap_or(Value::Null);
+    tauri::async_runtime::spawn_blocking(move || router.dispatch(&caller, &command, args))
+        .await
+        .map_err(|_| IpcError::internal())?
 }
 
 /// Comando reservado: o hook de isolamento reescreve nele toda mensagem que barra.
@@ -41,7 +48,7 @@ const BLOB_MAX: usize = 16 * 1024 * 1024;
 #[tauri::command]
 fn ipc_bytes(
     window: tauri::WebviewWindow,
-    router: State<'_, Router>,
+    router: State<'_, Arc<Router>>,
     request: tauri::ipc::Request<'_>,
 ) -> Result<tauri::ipc::Response, IpcError> {
     let caller = Caller::new(window.label());
@@ -80,7 +87,7 @@ fn blob_protocol(
             .body(Vec::new())
             .expect("resposta");
     }
-    let router = ctx.app_handle().state::<Router>();
+    let router = ctx.app_handle().state::<Arc<Router>>();
     let caller = Caller::new(ctx.webview_label());
     let command = request.uri().path().trim_start_matches('/');
     match router.dispatch_bytes(&caller, command, request.body()) {
@@ -134,6 +141,7 @@ fn build_router(
         Err(e) => tracing::error!(error = %e, "sem diretório de log"),
     }
     let audit: Arc<dyn AuditSink> = Arc::new(Fanout(sinks));
+    let audit_for_apps = audit.clone();
 
     // Zero privilégio: cada janela recebe só o que precisa. "untrusted" nunca recebe nada.
     let mut policy = Policy::new()
@@ -141,6 +149,7 @@ fn build_router(
         .grant("untrusted", "none")
         .grant("main", "shell:manage")
         .grant("main", "blob:use")
+        .grant("main", apps::CAP)
         .grant("mfe-a", "app:read")
         .grant("mfe-b", "app:read");
     if bench_out.is_some() {
@@ -204,6 +213,20 @@ fn build_router(
             .map_err(|_| IpcError::new(ErrorCode::InvalidArgs, "esperado u32 LE"))?;
         Ok(vec![0xAB; u32::from_le_bytes(n) as usize])
     });
+    // Mini-apps: raiz de dados própria (SUPERAPP_DATA_DIR nos testes) e comandos `apps.*`.
+    let data_dir = std::env::var("SUPERAPP_DATA_DIR")
+        .map(std::path::PathBuf::from)
+        .or_else(|_| app.path().app_data_dir());
+    match data_dir
+        .map_err(|e| e.to_string())
+        .and_then(|d| apps::open(d, audit_for_apps))
+    {
+        Ok(st) => {
+            apps::register(&mut r, st.clone());
+            app.manage(st);
+        }
+        Err(e) => tracing::error!(error = %e, "gerenciador de mini-apps desativado"),
+    }
     // Existe, mas nenhuma janela tem a capability: serve para provar o bloqueio.
     r.register("debug.privileged", "debug:privileged", |_c, _a: Value| {
         Ok(json!("segredo"))
@@ -241,15 +264,58 @@ pub fn run() {
     tauri::Builder::default()
         .register_uri_scheme_protocol("sapp", blob_protocol)
         .invoke_handler(tauri::generate_handler![ipc, ipc_bytes])
+        // Arrastar um .sapp para a janela principal: o Rust lê o arquivo (a UI nunca informa
+        // caminhos), verifica e deixa pendente de consentimento.
+        .on_window_event(|window, event| {
+            if window.label() != "main" {
+                return;
+            }
+            if let tauri::WindowEvent::DragDrop(tauri::DragDropEvent::Drop { paths, .. }) = event {
+                let Some(path) = paths.first().cloned() else {
+                    return;
+                };
+                let w = window.clone();
+                std::thread::spawn(move || {
+                    let Some(st) = w.try_state::<Arc<apps::AppsState>>() else {
+                        return;
+                    };
+                    let res = st.stage_path(&path);
+                    let _ = w.emit("apps://staged", res.err());
+                });
+            }
+        })
         .setup(move |app| {
             let smoke_out = std::env::var("SUPERAPP_SMOKE_OUT").ok();
             let bench_out = std::env::var("SUPERAPP_BENCH_OUT").ok();
-            app.manage(build_router(
+            app.manage(Arc::new(build_router(
                 smoke_out.clone(),
                 bench_out,
                 start,
                 app.handle().clone(),
-            ));
+            )));
+            // Só no modo smoke: prepara um pacote como se tivesse sido arrastado.
+            if smoke_out.is_some() {
+                if let (Ok(p), Some(st)) = (
+                    std::env::var("SUPERAPP_SMOKE_SAPP"),
+                    app.try_state::<Arc<apps::AppsState>>(),
+                ) {
+                    if let Err(e) = st.stage_path(std::path::Path::new(&p)) {
+                        tracing::error!(error = %e, "smoke: falha ao preparar o pacote");
+                    }
+                }
+            }
+            // Só em build de debug: prepara um pacote na inicialização (para ver a tela de
+            // consentimento sem arrastar arquivo). Nunca existe em release.
+            if cfg!(debug_assertions) && smoke_out.is_none() {
+                if let (Ok(p), Some(st)) = (
+                    std::env::var("SUPERAPP_DEV_STAGE"),
+                    app.try_state::<Arc<apps::AppsState>>(),
+                ) {
+                    if let Err(e) = st.stage_path(std::path::Path::new(&p)) {
+                        tracing::error!(error = %e, "dev: falha ao preparar o pacote");
+                    }
+                }
+            }
             if smoke_out.is_some() {
                 // Janela sem nenhuma capability, só no modo smoke.
                 WebviewWindowBuilder::new(

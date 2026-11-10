@@ -1,0 +1,7 @@
+{
+  "schema": 1,
+  "id": "clicker",
+  "name": "Clicker",
+  "version": "0.1.0",
+  "permissions": ["storage"]
+}

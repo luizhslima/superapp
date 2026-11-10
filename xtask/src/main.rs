@@ -68,12 +68,20 @@ fn smoke() -> bool {
     };
     let out = std::env::temp_dir().join(format!("superapp-smoke-{}.json", std::process::id()));
     let _ = std::fs::remove_file(&out);
+    let Some((data_dir, sapp)) = prepare_smoke_package() else {
+        return false;
+    };
     println!("> {exe} (SUPERAPP_SMOKE_OUT={})", out.display());
-    let Ok(mut child) = Command::new(exe).env("SUPERAPP_SMOKE_OUT", &out).spawn() else {
+    let Ok(mut child) = Command::new(exe)
+        .env("SUPERAPP_SMOKE_OUT", &out)
+        .env("SUPERAPP_DATA_DIR", &data_dir)
+        .env("SUPERAPP_SMOKE_SAPP", &sapp)
+        .spawn()
+    else {
         eprintln!("não consegui iniciar {exe}");
         return false;
     };
-    let deadline = Instant::now() + Duration::from_secs(90);
+    let deadline = Instant::now() + Duration::from_secs(120);
     loop {
         if matches!(child.try_wait(), Ok(Some(_))) {
             break;
@@ -99,6 +107,47 @@ fn smoke() -> bool {
 
 fn f_unknown(f: &Value) -> &Value {
     &f["unknown"]
+}
+
+/// Compila o mini-app `clicker`, assina com uma chave efêmera e prepara o diretório de dados
+/// do app (com a lista de chaves confiáveis). Devolve (diretório de dados, caminho do .sapp).
+fn prepare_smoke_package() -> Option<(std::path::PathBuf, std::path::PathBuf)> {
+    let ok = Command::new("cargo")
+        .args(["build", "--release", "--target", "wasm32-wasip2"])
+        .current_dir("miniapps/clicker")
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false);
+    if !ok {
+        eprintln!("não compilei o clicker (rustup target add wasm32-wasip2)");
+        return None;
+    }
+    let wasm = std::fs::read("miniapps/clicker/target/wasm32-wasip2/release/clicker.wasm").ok()?;
+    let base = std::env::temp_dir().join(format!("superapp-smoke-data-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&base);
+    let data = base.join("data");
+    std::fs::create_dir_all(&data).ok()?;
+    let mut seed = [0u8; 32];
+    getrandom::fill(&mut seed).ok()?;
+    let key = ed25519_dalek::SigningKey::from_bytes(&seed);
+    let manifest = superapp_package::Manifest {
+        schema: 1,
+        id: "clicker".into(),
+        name: "Clicker".into(),
+        version: "0.1.0".into(),
+        permissions: vec![superapp_package::Permission::Storage],
+        wasm_sha256: String::new(),
+        limits: None,
+    };
+    let bytes = superapp_package::pack(&key, &manifest, &wasm).ok()?;
+    let sapp = base.join("clicker.sapp");
+    std::fs::write(&sapp, bytes).ok()?;
+    std::fs::write(
+        data.join("trusted-keys.txt"),
+        superapp_package::to_hex(key.verifying_key().as_bytes()),
+    )
+    .ok()?;
+    Some((data, sapp))
 }
 
 fn check_report(report: &Value) -> bool {
@@ -142,6 +191,67 @@ fn check_report(report: &Value) -> bool {
             code(&r["untrusted"]["echo"]) == "permission_denied",
         ),
     ];
+
+    let ap = &r["apps"];
+    let ui_text = |v: &Value| {
+        v["value"]["children"][0]["text"]
+            .as_str()
+            .unwrap_or("")
+            .to_owned()
+    };
+    checks.extend([
+        (
+            "apps: pacote arrastado fica pendente com preview correto",
+            ap["pending"] == 1
+                && ap["preview"]["id"] == "clicker"
+                && ap["preview"]["is_update"] == false
+                && ap["preview"]["requested"] == serde_json::json!(["storage"])
+                && ap["preview"]["added"] == serde_json::json!(["storage"]),
+        ),
+        (
+            "apps: token desconhecido → not_found",
+            code(&ap["bad_token"]) == "not_found",
+        ),
+        (
+            "apps: permissão inexistente → invalid_args",
+            code(&ap["bad_perm"]) == "invalid_args",
+        ),
+        (
+            "apps: aprovação além do manifesto → invalid_args",
+            code(&ap["exceed"]) == "invalid_args",
+        ),
+        (
+            "apps: instala com consentimento",
+            ap["install"]["ok"] == true && ap["install"]["value"]["enabled"] == true,
+        ),
+        (
+            "apps: UI declarativa inicial e após 2 cliques",
+            ui_text(&ap["init"]) == "Cliques: 0" && ui_text(&ap["click"]) == "Cliques: 2",
+        ),
+        (
+            "apps: id de evento inválido barrado",
+            code(&ap["bad_event"]) == "invalid_args",
+        ),
+        (
+            "apps: suspenso não executa; retomado executa com dados preservados",
+            ap["suspend"]["ok"] == true
+                && code(&ap["suspended_run"]) == "permission_denied"
+                && ui_text(&ap["resumed"]) == "Cliques: 2",
+        ),
+        (
+            "apps: remoção limpa lista, pendências e execução",
+            ap["list"]["value"].as_array().map(Vec::len) == Some(1)
+                && ap["uninstall"]["ok"] == true
+                && ap["after"]["value"].as_array().map(Vec::len) == Some(0)
+                && code(&ap["gone"]) == "not_found"
+                && ap["pending_after"] == 0,
+        ),
+        (
+            "apps: janela sem capability não lista nem executa",
+            code(&r["untrusted"]["apps"]) == "permission_denied"
+                && code(&r["untrusted"]["appsRun"]) == "permission_denied",
+        ),
+    ]);
 
     let m = &r["mfe"];
     println!("  mfe: {m}");

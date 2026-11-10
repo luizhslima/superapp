@@ -15,3 +15,9 @@ unsafe_code = "deny"
 
 [workspace.lints.clippy]
 all = { level = "warn", priority = -1 }
+
+# Release enxuto: LTO e símbolos removidos (o instalador é distribuído sem assinatura, tamanho importa).
+[profile.release]
+lto = "fat"
+codegen-units = 1
+strip = "symbols"

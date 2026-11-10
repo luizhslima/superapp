@@ -15,7 +15,9 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tracing = "0.1"
 tokio = { version = "1", features = ["time"] }
-wasmtime = "50"
+# Só o que usamos: Cranelift + Component Model + async. Sem cache em disco, GC, depuração,
+# perfil, coredump, threads nem parser WIT (reduz bastante o binário).
+wasmtime = { version = "50", default-features = false, features = ["std", "anyhow", "async", "backtrace", "cranelift", "runtime", "component-model", "parallel-compilation"] }
 wasmtime-wasi = "50"
 
 [dev-dependencies]
