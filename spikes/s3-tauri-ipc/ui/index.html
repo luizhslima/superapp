@@ -1,0 +1,69 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>S3</title></head>
+<body>
+<pre id="out">running...</pre>
+<script>
+const { invoke } = window.__TAURI__.core;
+const label = window.__TAURI__.window.getCurrentWindow().label;
+const MODE = new URLSearchParams(location.search).get("mode") || "";
+const out = document.getElementById("out");
+const log = (s) => { out.textContent += "\n" + s; };
+const report = (line, done = false) => invoke("report", { line, done });
+const median = (a) => [...a].sort((x, y) => x - y)[Math.floor(a.length / 2)];
+
+async function time(fn, runs = 5) {
+  await fn(); // warmup
+  const t = [];
+  for (let i = 0; i < runs; i++) {
+    const s = performance.now();
+    await fn();
+    t.push(performance.now() - s);
+  }
+  return median(t);
+}
+
+// BroadcastChannel: janela "a" envia, "b" responde.
+const bc = new BroadcastChannel("s3");
+let bcResolve;
+bc.onmessage = (e) => {
+  if (label === "b" && e.data === "ping") bc.postMessage("pong");
+  if (label === "a" && e.data === "pong" && bcResolve) bcResolve(true);
+};
+
+(async () => {
+  try {
+    if (label === "b") { log("window b ready"); return; }
+    await new Promise((r) => setTimeout(r, 1500)); // aguarda b abrir
+
+    const bcOk = await new Promise((resolve) => {
+      bcResolve = resolve;
+      bc.postMessage("ping");
+      setTimeout(() => resolve(false), 3000);
+    });
+
+    const jsonMs = await time(async () => {
+      const r = await invoke("blob_json");
+      return r.length;
+    });
+    const binMs = await time(async () => {
+      const r = await invoke("blob_binary");
+      return r.byteLength;
+    });
+    const isolation = !!window.__TAURI_ISOLATION_HOOK__ || document.querySelector("iframe[src*='isolation']") !== null;
+    const line = JSON.stringify({
+      ua: navigator.userAgent.split(" ").slice(-2).join(" "),
+      isolation, bcOk,
+      json_ms: +jsonMs.toFixed(1),
+      binary_ms: +binMs.toFixed(1),
+      speedup: +(jsonMs / binMs).toFixed(1),
+    });
+    log(line);
+    await report(line, true);
+  } catch (e) {
+    await report("ERROR " + e, true);
+  }
+})();
+</script>
+</body>
+</html>

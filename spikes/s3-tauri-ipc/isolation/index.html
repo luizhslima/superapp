@@ -1,0 +1,10 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>isolation</title></head>
+<body>
+<script>
+  // Hook do Isolation Pattern: inspeciona/valida cada mensagem IPC antes de chegar ao core.
+  window.__TAURI_ISOLATION_HOOK__ = (payload) => payload;
+</script>
+</body>
+</html>
