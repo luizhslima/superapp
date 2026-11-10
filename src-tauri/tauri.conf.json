@@ -10,7 +10,7 @@
       { "label": "main", "title": "Superapp", "url": "index.html", "width": 1000, "height": 700 }
     ],
     "security": {
-      "csp": "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src ipc: http://ipc.localhost",
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-hashes' 'sha256-YEercZJImS+vUX2bz7vkQ0aA4rtBIPLuCEWz+yraQ/g='; img-src 'self' data:; connect-src ipc: http://ipc.localhost",
       "pattern": { "use": "isolation", "options": { "dir": "../ui/isolation" } }
     }
   },

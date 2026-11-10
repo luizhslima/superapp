@@ -8,7 +8,7 @@ pub mod error;
 pub mod policy;
 pub mod router;
 
-pub use audit::{AuditEvent, AuditSink, Decision, MemoryAudit, TracingAudit};
+pub use audit::{AuditEvent, AuditSink, Decision, FileAudit, MemoryAudit, TracingAudit};
 pub use error::{ErrorCode, IpcError};
 pub use policy::{Caller, Policy};
 pub use router::Router;
@@ -117,6 +117,39 @@ mod tests {
             .dispatch(&Caller::new("main"), "fail", json!(null))
             .unwrap_err();
         assert_eq!(err.message, "boom");
+    }
+
+    #[test]
+    fn hook_rejection_is_audited_and_sanitized() {
+        let (r, audit) = setup();
+        let long = format!("evil\n\"{}", "x".repeat(200));
+        r.audit_hook_rejection(&Caller::new("main"), &long);
+        let ev = &audit.events()[0];
+        assert_eq!(ev.decision, Decision::DeniedByHook);
+        assert_eq!(ev.command.chars().count(), 64);
+        assert!(ev.command.starts_with("evil??"));
+    }
+
+    #[test]
+    fn file_audit_writes_one_json_line_per_event() {
+        let path =
+            std::env::temp_dir().join(format!("superapp-audit-{}.jsonl", std::process::id()));
+        let _ = std::fs::remove_file(&path);
+        let sink = Arc::new(FileAudit::open(&path).unwrap());
+        let mut r = Router::new(Policy::new().grant("main", "math"), sink);
+        r.register("ping", "math", |_c, _a: serde_json::Value| Ok(1));
+        r.dispatch(&Caller::new("main"), "ping", json!(null))
+            .unwrap();
+        let _ = r.dispatch(&Caller::new("other"), "ping", json!(null));
+        let text = std::fs::read_to_string(&path).unwrap();
+        let lines: Vec<serde_json::Value> = text
+            .lines()
+            .map(|l| serde_json::from_str(l).unwrap())
+            .collect();
+        assert_eq!(lines.len(), 2);
+        assert_eq!(lines[0]["decision"], "Allowed");
+        assert_eq!(lines[1]["decision"], "DeniedNoCapability");
+        let _ = std::fs::remove_file(&path);
     }
 
     #[test]

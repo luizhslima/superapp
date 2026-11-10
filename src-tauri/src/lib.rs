@@ -2,7 +2,8 @@
 use serde_json::{json, Value};
 use std::sync::Arc;
 use superapp_core::{
-    AuditEvent, AuditSink, Caller, ErrorCode, IpcError, MemoryAudit, Policy, Router, TracingAudit,
+    AuditEvent, AuditSink, Caller, ErrorCode, FileAudit, IpcError, MemoryAudit, Policy, Router,
+    TracingAudit,
 };
 use tauri::{Manager, State, WebviewUrl, WebviewWindowBuilder};
 
@@ -15,12 +16,22 @@ fn ipc(
     command: String,
     args: Option<Value>,
 ) -> Result<Value, IpcError> {
-    router.dispatch(
-        &Caller::new(window.label()),
-        &command,
-        args.unwrap_or(Value::Null),
-    )
+    let caller = Caller::new(window.label());
+    if command == HOOK_REJECTED {
+        // Só o hook de isolamento produz este nome (a UI não passa no filtro de formato).
+        let attempted = args
+            .as_ref()
+            .and_then(|a| a.get("attempted"))
+            .and_then(Value::as_str)
+            .unwrap_or("?");
+        router.audit_hook_rejection(&caller, attempted);
+        return Err(IpcError::new(ErrorCode::PermissionDenied, "não autorizado"));
+    }
+    router.dispatch(&caller, &command, args.unwrap_or(Value::Null))
 }
+
+/// Comando reservado: o hook de isolamento reescreve nele toda mensagem que barra.
+const HOOK_REJECTED: &str = "HOOK_REJECTED";
 
 /// Sink que replica para o log estruturado e guarda em memória (usado só no modo smoke).
 struct Fanout(Vec<Arc<dyn AuditSink>>);
@@ -34,10 +45,19 @@ impl AuditSink for Fanout {
 
 fn build_router(smoke_out: Option<String>, app: tauri::AppHandle) -> Router {
     let memory = Arc::new(MemoryAudit::default());
-    let audit: Arc<dyn AuditSink> = Arc::new(Fanout(vec![
-        Arc::new(TracingAudit),
-        memory.clone() as Arc<dyn AuditSink>,
-    ]));
+    let mut sinks: Vec<Arc<dyn AuditSink>> =
+        vec![Arc::new(TracingAudit), memory.clone() as Arc<dyn AuditSink>];
+    // Trilha persistente em <log_dir>/audit.jsonl (JSONL, append).
+    match app.path().app_log_dir() {
+        Ok(dir) => match std::fs::create_dir_all(&dir)
+            .and_then(|_| FileAudit::open(dir.join("audit.jsonl")))
+        {
+            Ok(f) => sinks.push(Arc::new(f)),
+            Err(e) => tracing::error!(error = %e, "auditoria em arquivo desativada"),
+        },
+        Err(e) => tracing::error!(error = %e, "sem diretório de log"),
+    }
+    let audit: Arc<dyn AuditSink> = Arc::new(Fanout(sinks));
 
     // Zero privilégio: cada janela recebe só o que precisa. "untrusted" nunca recebe nada.
     let mut policy = Policy::new()

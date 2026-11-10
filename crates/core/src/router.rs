@@ -70,6 +70,23 @@ impl Router {
         (cmd.handler)(caller, args)
     }
 
+    /// Registra uma mensagem que o hook de isolamento barrou. O nome tentado vem da UI
+    /// (não confiável): é truncado e sanitizado para não poluir nem forjar o log.
+    pub fn audit_hook_rejection(&self, caller: &Caller, attempted: &str) {
+        let safe: String = attempted
+            .chars()
+            .take(64)
+            .map(|c| {
+                if c.is_ascii_alphanumeric() || matches!(c, '_' | '.' | ':' | '|' | '-') {
+                    c
+                } else {
+                    '?'
+                }
+            })
+            .collect();
+        self.record(caller, &safe, Decision::DeniedByHook);
+    }
+
     fn record(&self, caller: &Caller, command: &str, decision: Decision) {
         self.audit.record(AuditEvent {
             window: caller.window.clone(),

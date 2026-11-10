@@ -6,6 +6,8 @@ pub enum Decision {
     Allowed,
     DeniedUnknownCommand,
     DeniedNoCapability,
+    /// Mensagem barrada pelo hook de isolamento antes de chegar ao roteador.
+    DeniedByHook,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -35,6 +37,45 @@ impl MemoryAudit {
 impl AuditSink for MemoryAudit {
     fn record(&self, event: AuditEvent) {
         self.events.lock().expect("audit mutex").push(event);
+    }
+}
+
+/// Sink persistente: uma linha JSON por evento (JSONL), em modo append.
+/// Falha de escrita nunca derruba o app: vira `tracing::error`.
+#[derive(Debug)]
+pub struct FileAudit {
+    file: Mutex<std::fs::File>,
+}
+
+impl FileAudit {
+    pub fn open(path: impl AsRef<std::path::Path>) -> std::io::Result<Self> {
+        let file = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(path)?;
+        Ok(Self {
+            file: Mutex::new(file),
+        })
+    }
+}
+
+impl AuditSink for FileAudit {
+    fn record(&self, e: AuditEvent) {
+        use std::io::Write;
+        let ts = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis())
+            .unwrap_or(0);
+        let line = serde_json::json!({
+            "ts_ms": ts,
+            "window": e.window,
+            "command": e.command,
+            "decision": format!("{:?}", e.decision),
+        });
+        let mut f = self.file.lock().expect("audit file mutex");
+        if let Err(err) = writeln!(f, "{line}") {
+            tracing::error!(error = %err, "falha ao gravar auditoria");
+        }
     }
 }
 

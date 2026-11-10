@@ -39,9 +39,10 @@ Legenda: ⏳ pendente · 🔄 em andamento · ✅ feito · 🧊 bloqueado/adiado
 - ✅ E1.1 `superapp-core`: roteador IPC tipado, política deny-by-default por janela, erros padronizados, auditoria (8 testes).
 - ✅ App Tauri real (`src-tauri`): único comando `ipc` → `Router::dispatch`; identidade = label da janela (não vem da UI); Isolation hook com allowlist; CSP; smoke test de 2 janelas (main permitido, untrusted bloqueado, desconhecido, args inválidos) passando no Windows
 - ✅ Hook rejeita nome inválido, comando >64 chars, args >64 KB, `plugin:fs|*` e `plugin:window|destroy` (testado via CDP)
-- ⏳ Rejeições do hook são descartadas **sem auditoria** (nunca chegam ao Rust). Decidir: aceitar, ou sinalizar ao core um evento de segurança
-- ⏳ Smoke test automatizado na CI (hoje manual: `SUPERAPP_SMOKE_OUT=... superapp.exe`) e auditoria em arquivo
-- ⏳ CSP: aviso de `style-src` inline vindo do Tauri/isolation; avaliar nonce/hash
+- ✅ Rejeições do hook agora são **auditadas** (`DeniedByHook`): o hook reescreve a mensagem barrada para o comando reservado `HOOK_REJECTED` (maiúsculas: a UI não consegue produzi-lo) e o host registra o nome tentado, truncado em 64 chars e sanitizado. A promise da UI deixa de ficar pendurada: recebe `permission_denied`
+- ✅ Auditoria persistente: `FileAudit` grava JSONL em `<log_dir>/audit.jsonl` (Windows: `%LOCALAPPDATA%\dev.superapp.app\logs`). Pendente: rotação/limite de tamanho
+- ✅ Smoke automatizado: `cargo xtask smoke` (14 verificações) passa no Windows; adicionado à CI (Linux via xvfb). Resultado em Linux/macOS: ver abaixo
+- ✅ CSP: o aviso vinha do estilo inline que o Tauri aplica no iframe de isolamento; liberado só o hash exato via `'unsafe-hashes'` (sem `unsafe-inline`). Console limpo
 - ⚠️ `window.ipc` é reservado pelo WebView (wry); usar `window.host`
 - ⏳ E1.2 capabilities mínimas por janela + isolation hook que valida payload
 - ⏳ E1.3 shell + 2 micro-frontends · E1.4 binary IPC · E1.5 empacotamento/benchmarks

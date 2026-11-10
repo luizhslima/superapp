@@ -13,7 +13,11 @@ window.__TAURI_ISOLATION_HOOK__ = (payload) => {
     const argsOk = p.args === undefined || p.args === null || (typeof p.args === "object" && JSON.stringify(p.args).length <= 65536);
     if (nameOk && argsOk) return payload;
   }
-  throw new Error("mensagem IPC rejeitada pelo hook de isolamento");
+  // Em vez de descartar em silêncio (a promise da UI ficaria pendurada e nada seria auditado),
+  // reescreve para o comando reservado HOOK_REJECTED. O nome tem maiúsculas, então a UI não
+  // consegue produzi-lo: qualquer tentativa dela cai de novo nesta rejeição.
+  const attempted = typeof cmd === "string" ? (cmd === "ipc" && payload.payload && typeof payload.payload.command === "string" ? payload.payload.command : cmd) : "?";
+  return { ...payload, cmd: "ipc", payload: { command: "HOOK_REJECTED", args: { attempted: attempted.slice(0, 64) } } };
 };
 </script>
 </body></html>
