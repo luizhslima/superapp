@@ -51,7 +51,20 @@ Legenda: ⏳ pendente · 🔄 em andamento · ✅ feito · 🧊 bloqueado/adiado
   - `sapp://localhost/<comando>` (esquema próprio, fora do hook; identidade = `webview_label`): **envio 10 MiB em ~155 ms (~65 MiB/s), ~85× mais rápido**. Usar este para corpos grandes.
   - **Investigação dos ~110 MB/s (host→UI)**: 10 MiB em ~85–90 ms nos dois canais, com ou sem Isolation, e gerar o `Vec` custa ~1 ms. Logo o teto é o transporte do WebView2 (Windows), não o nosso código. Suficiente para a meta; dados maiores devem ir por arquivo/stream. Medido na CI (runners, 10 MiB): host→UI Windows ~115 ms, Linux ~62 ms, macOS ~14–123 ms; `sapp://` envio Windows ~157 ms, Linux ~22 ms, macOS ~10 ms; `ipc_bytes` envio de 1 MiB ~1,0–1,6 s nos três. Ou seja: o teto de ~110 MiB/s é **específico do WebView2/Windows**; o Isolation custa ~1 µs/byte em todos
   - Risco aceito: `sapp://` recebe o corpo inteiro em memória antes do Router checar o limite (o Tauri não expõe Content-Length antes). Só código do próprio app roda nas janelas; reavaliar quando houver conteúdo de terceiros em janelas
-- ⏳ E1.5 empacotamento/benchmarks
+- ✅ E1.5 empacotamento + benchmark: workflow `package.yml` (manual e tags `v*`) gera instaladores **sem assinatura** nos 3 SOs e `cargo xtask bench` mede o release. Resultados (runners CI, 2026-11-10):
+
+  | SO | instalador | binário | host RSS | UI pronta |
+  |---|---|---|---|---|
+  | Windows | NSIS 1,9 MB | 8,7 MB | ~30 MB (total WebView2 ~350 MB*) | ~0,5–4 s |
+  | Linux | deb 3,0 MB · AppImage 78 MB | 11,3 MB | ~126 MB | ~32 s (xvfb, sem GPU; não representativo) |
+  | macOS | dmg 2,9 MB (aarch64) | 9,9 MB | ~94 MB (WKWebView fica fora da árvore; subestima) | ~5,4 s |
+
+  *Soma de RSS dos processos: superestima (páginas compartilhadas contadas várias vezes). Só o NSIS foi gerado e **não instalado** localmente (instalar altera o registro do usuário). Instaladores dos outros SOs não foram executados, só construídos.
+  - **Meta de RAM (00-vision-scope.md)**: o host Rust sozinho fica em ~30 MB no Windows (dentro de 25–40 MB), mas o total com WebView2 é bem maior. Rever a meta para medir "host" e "WebView" separadamente. Medição confiável de memória real exige máquina física (Working Set privado), não RSS somado
+  - Orçamento de "UI pronta" é só aviso (> 15 s): o CI sem GPU distorce o tempo
+
+## Fase 1: fechamento
+E1.1–E1.5 concluídos. Pendências que sobram (não bloqueiam): rotação do log de auditoria; medir S3/S5 e benchmark em máquinas reais (Linux local, macOS quando houver); instaladores nunca executados fora do Windows (CI só constrói); assinatura/notarização (Fase 5); revisar a meta de RAM em `00-vision-scope.md`.
 
 ## Gate da Fase 0
 ✅ Aceito em 2026-11-10 (Windows-only, ADR-007 adiado). Dívida: Linux/macOS na Fase 1.
