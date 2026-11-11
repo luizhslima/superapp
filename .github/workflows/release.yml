@@ -2,7 +2,7 @@ name: release
 
 # Publicação (E5.2): em tag v*, gera instaladores e os artefatos do atualizador assinados
 # (minisign) e os anexa a um rascunho de Release no GitHub, junto com latest.json.
-# Segredos necessários (Settings > Secrets and variables > Actions):
+# Segredos necessários (environment CI_SUPERAPP_ENVS, em Settings > Environments):
 #   TAURI_SIGNING_PRIVATE_KEY           conteúdo do arquivo superapp-updater.key
 #   TAURI_SIGNING_PRIVATE_KEY_PASSWORD  senha da chave
 # A chave pública correspondente está em docs/security/updater-pubkey.txt.
@@ -17,6 +17,8 @@ jobs:
   release:
     name: release (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    # Os segredos de assinatura estão neste environment (não no nível do repositório).
+    environment: CI_SUPERAPP_ENVS
     strategy:
       fail-fast: false
       matrix:
