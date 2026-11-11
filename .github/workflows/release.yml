@@ -21,6 +21,8 @@ jobs:
     environment: CI_SUPERAPP_ENVS
     strategy:
       fail-fast: false
+      # Em série: todos editam o mesmo latest.json do rascunho; em paralelo um sobrescreve o outro.
+      max-parallel: 1
       matrix:
         include:
           - os: ubuntu-latest
