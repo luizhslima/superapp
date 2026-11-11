@@ -1,0 +1,48 @@
+name: release
+
+# Publicação (E5.2): em tag v*, gera instaladores e os artefatos do atualizador assinados
+# (minisign) e os anexa a um rascunho de Release no GitHub, junto com latest.json.
+# Segredos necessários (Settings > Secrets and variables > Actions):
+#   TAURI_SIGNING_PRIVATE_KEY           conteúdo do arquivo superapp-updater.key
+#   TAURI_SIGNING_PRIVATE_KEY_PASSWORD  senha da chave
+# A chave pública correspondente está em docs/security/updater-pubkey.txt.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: release (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            bundles: deb,appimage
+          - os: windows-latest
+            bundles: nsis
+          - os: macos-latest
+            bundles: dmg,app
+    steps:
+      - uses: actions/checkout@v4
+      - name: Dependências do Tauri (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev patchelf
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: "superapp ${{ github.ref_name }}"
+          releaseDraft: true
+          args: --bundles ${{ matrix.bundles }} --config src-tauri/tauri.release.conf.json
