@@ -251,6 +251,11 @@ fn check_report(report: &Value) -> bool {
             code(&r["untrusted"]["apps"]) == "permission_denied"
                 && code(&r["untrusted"]["appsRun"]) == "permission_denied",
         ),
+        (
+            "updates: janela sem capability não verifica nem instala atualização",
+            code(&r["untrusted"]["upd"]) == "permission_denied"
+                && code(&r["untrusted"]["updInstall"]) == "permission_denied",
+        ),
     ]);
 
     let m = &r["mfe"];

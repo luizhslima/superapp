@@ -17,6 +17,7 @@ superapp-package = { path = "../crates/package" }
 superapp-wasm-host = { path = "../crates/wasm-host" }
 serde = { version = "1", features = ["derive"] }
 tauri = { version = "2", features = ["isolation"] }
+tauri-plugin-updater = "2"
 serde_json = "1"
 tracing = "0.1"
 tracing-subscriber = "0.3"

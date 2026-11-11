@@ -14,6 +14,13 @@
       "pattern": { "use": "isolation", "options": { "dir": "../ui/isolation" } }
     }
   },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDAzRjdBMEMyRUFBN0IyRjkKUldUNXNxZnF3cUQzQTZHdkFPS0NiOGpCZjgxQ0hXeHFaam4zRHI5ZFpQcnNDUkZTc2lSUFRUUFYK",
+      "endpoints": ["https://github.com/luizhslima/superapp/releases/latest/download/latest.json"],
+      "windows": { "installMode": "passive" }
+    }
+  },
   "bundle": {
     "active": true,
     "targets": "all",

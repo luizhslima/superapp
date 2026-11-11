@@ -12,7 +12,9 @@
       const blob = await window.hostBlob("blob.echo", new Uint8Array([1]));
       const apps = await window.host("apps.list");
       const appsRun = await window.host("apps.dispatch", { id: "clicker", event: { type: "init" } });
-      bc.postMessage({ info, echo, bytes, blob, apps, appsRun });
+      const upd = await window.host("app.update.check");
+      const updInstall = await window.host("app.update.install");
+      bc.postMessage({ info, echo, bytes, blob, apps, appsRun, upd, updInstall });
     })();
   </script>
 </body></html>

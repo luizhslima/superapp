@@ -180,6 +180,27 @@
 
   window.initAppsUi = async function () {
     $("view-close").addEventListener("click", closeView);
+    // Atualização do host: a UI só pede "verificar" e "instalar"; endereço e chave são do Rust.
+    $("update-check").addEventListener("click", async () => {
+      status("Verificando atualizações...");
+      const r = await window.host("app.update.check");
+      if (!r.ok) return status(errText(r), true);
+      const v = r.value;
+      $("update-install").hidden = !v.available;
+      status(
+        v.available
+          ? `Nova versão ${v.available} disponível (atual ${v.current}).`
+          : `Você já está na versão mais recente (${v.current}).`
+      );
+    });
+    $("update-install").addEventListener("click", async () => {
+      $("update-install").disabled = true;
+      status("Baixando e verificando a assinatura...");
+      const r = await window.host("app.update.install");
+      // Em caso de sucesso o app reinicia e esta linha nem chega a rodar.
+      if (!r.ok) status(errText(r), true);
+      $("update-install").disabled = false;
+    });
     // O Rust avisa quando um arquivo foi arrastado (null = ok, texto = motivo da recusa).
     try {
       await window.__TAURI__.event.listen("apps://staged", (e) => {

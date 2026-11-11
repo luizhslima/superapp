@@ -1,5 +1,6 @@
 //! Host Tauri: encaminha todo comando da UI para o `Router` do core.
 mod apps;
+mod updates;
 
 use serde_json::{json, Value};
 use std::sync::Arc;
@@ -150,6 +151,7 @@ fn build_router(
         .grant("main", "shell:manage")
         .grant("main", "blob:use")
         .grant("main", apps::CAP)
+        .grant("main", updates::CAP)
         .grant("mfe-a", "app:read")
         .grant("mfe-b", "app:read");
     if bench_out.is_some() {
@@ -227,6 +229,7 @@ fn build_router(
         }
         Err(e) => tracing::error!(error = %e, "gerenciador de mini-apps desativado"),
     }
+    updates::register(&mut r, app.clone());
     // Existe, mas nenhuma janela tem a capability: serve para provar o bloqueio.
     r.register("debug.privileged", "debug:privileged", |_c, _a: Value| {
         Ok(json!("segredo"))
@@ -262,6 +265,7 @@ pub fn run() {
     tracing_subscriber::fmt().with_target(false).init();
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .register_uri_scheme_protocol("sapp", blob_protocol)
         .invoke_handler(tauri::generate_handler![ipc, ipc_bytes])
         // Arrastar um .sapp para a janela principal: o Rust lê o arquivo (a UI nunca informa
