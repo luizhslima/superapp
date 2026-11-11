@@ -33,6 +33,8 @@ flowchart LR
 
 > **Gate da Fase 2: ✅ aceito em 2026-11-10.** Suíte de ataques 100% contida (matriz em [06-security-model.md](06-security-model.md)); mini-apps de exemplo (Rust com SDK e JavaScript) rodando nos 3 SOs em CI; pacote assinado, consentimento, ciclo de vida e UI declarativa entregues. **Ressalvas**: (1) o contrato só foi provado com Rust e JavaScript (C/Go sem toolchain local); (2) o app JS leva ~8,5 s para compilar na instalação e recompila após reiniciar (cache seguro em disco pendente); (3) tamanho do instalador ~5,55 MiB com Wasmtime, aceito; (4) sem revogação central de chaves nem auto-update (Fase 5). Ver [TODO](TODO.md).
 
+> **Fases 3 e 4 adiadas em 2026-11-10** por decisão: não há caso de uso concreto de IA/dados nem de código nativo, e o custo (processo Python, toolchains C++) só se justifica com um. A Fase 4 já é "sob demanda" por definição. A decisão do [ADR-003](04-adrs/ADR-003-python-embedded-vs-sidecar.md) (worker em processo filho + Arrow IPC) permanece válida para quando a Fase 3 for retomada; ADR-007 segue *Proposed*. Próxima fase ativa: **Fase 5**.
+
 ## Fase 3 · Camada Python/IA (~4–6 sem, conforme S1)
 - **Objetivo**: capacidade analítica/IA no host.
 - **Entregáveis**: Python como módulo opcional (download sob demanda); pool de interpretadores ou worker isolado (decidido em ADR-003); ponte Arrow zero-copy; uma feature real de IA/dados exposta à UI e ao WIT; gestão do ciclo de vida/erros (sem processos zumbi).

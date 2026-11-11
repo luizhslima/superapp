@@ -79,6 +79,13 @@ Legenda: ⏳ pendente · 🔄 em andamento · ✅ feito · 🧊 bloqueado/adiado
 - ⏳ **Cache de componentes compilados em disco**: hoje, após reiniciar o app, a 1ª abertura de um app grande (JS) recompila (~8,5 s). Cache exige `Component::deserialize` (unsafe) sobre código nativo gravado em disco: só é seguro se autenticado (ex.: chave do host + hash do wasm + versão do Wasmtime). Alternativas: pré-compilar em segundo plano no boot, ou `--aot`/QuickJS do jco para componentes menores
 - ⏳ Perfil `dev` agora otimiza Cranelift/Wasmtime (`opt-level = 3`): compilar o componente JS caiu de ~100 s para ~9 s nos testes
 
+## Fases 3 e 4: adiadas (2026-11-10)
+Sem caso de uso concreto de IA/dados (Fase 3) nem de código nativo (Fase 4). Retomar quando houver um. Pendências que ficam registradas: S4 (`cxx` cross-OS), medição de latência Arrow IPC (início da Fase 3), WASI 0.3.
+
+## Fase 5 (próxima)
+- ⚠️ **Lacuna do gate da Fase 2**: `07-quality-ci-release.md` lista `cargo-audit`, `cargo-deny` e fuzz de parsers (manifesto/pacote/UI/IPC) como parte da segurança do gate da Fase 2. **Não foram feitos.** Entram primeiro na Fase 5 (E5.4)
+- Fases de trabalho propostas: E5.4 endurecimento (audit/deny/fuzz/SBOM) → E5.2 pipeline de release + auto-update → E5.1 distribuição de mini-apps → E5.5 docs + E5.3 diagnóstico → E5.6 beta
+
 ## Fase 1: fechamento
 E1.1–E1.5 concluídos. Pendências que sobram (não bloqueiam): rotação do log de auditoria; medir S3/S5 e benchmark em máquinas reais (Linux local, macOS quando houver); instaladores nunca executados fora do Windows (CI só constrói); assinatura/notarização (Fase 5); meta de RAM **revisada** em `00-vision-scope.md` (host ≤ 40 MB; WebView medido à parte, ainda sem alvo).
 
