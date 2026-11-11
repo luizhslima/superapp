@@ -42,22 +42,78 @@ impl AuditSink for MemoryAudit {
     }
 }
 
-/// Sink persistente: uma linha JSON por evento (JSONL), em modo append.
+/// Tamanho máximo de cada arquivo de auditoria antes de rotacionar (5 MiB).
+pub const DEFAULT_MAX_BYTES: u64 = 5 * 1024 * 1024;
+/// Quantos arquivos antigos manter (`audit.jsonl.1` ... `.N`); o mais antigo é descartado.
+pub const DEFAULT_KEEP: usize = 3;
+
+struct FileState {
+    file: std::fs::File,
+    size: u64,
+}
+
+/// Sink persistente: uma linha JSON por evento (JSONL), em modo append, com **rotação por
+/// tamanho**: um cliente barulhento (ou hostil) não consegue encher o disco. Ao passar do
+/// limite, `audit.jsonl` vira `.1`, `.1` vira `.2` etc., e o mais antigo é apagado.
 /// Falha de escrita nunca derruba o app: vira `tracing::error`.
-#[derive(Debug)]
 pub struct FileAudit {
-    file: Mutex<std::fs::File>,
+    path: std::path::PathBuf,
+    max_bytes: u64,
+    keep: usize,
+    state: Mutex<FileState>,
+}
+
+impl std::fmt::Debug for FileAudit {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("FileAudit")
+            .field("path", &self.path)
+            .finish()
+    }
+}
+
+fn open_append(path: &std::path::Path) -> std::io::Result<FileState> {
+    let file = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)?;
+    let size = file.metadata().map(|m| m.len()).unwrap_or(0);
+    Ok(FileState { file, size })
 }
 
 impl FileAudit {
     pub fn open(path: impl AsRef<std::path::Path>) -> std::io::Result<Self> {
-        let file = std::fs::OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(path)?;
+        Self::open_with(path, DEFAULT_MAX_BYTES, DEFAULT_KEEP)
+    }
+
+    pub fn open_with(
+        path: impl AsRef<std::path::Path>,
+        max_bytes: u64,
+        keep: usize,
+    ) -> std::io::Result<Self> {
+        let path = path.as_ref().to_path_buf();
+        let state = open_append(&path)?;
         Ok(Self {
-            file: Mutex::new(file),
+            path,
+            max_bytes: max_bytes.max(1),
+            keep: keep.max(1),
+            state: Mutex::new(state),
         })
+    }
+
+    fn rotated(&self, n: usize) -> std::path::PathBuf {
+        let mut name = self.path.as_os_str().to_owned();
+        name.push(format!(".{n}"));
+        std::path::PathBuf::from(name)
+    }
+
+    fn rotate(&self, st: &mut FileState) -> std::io::Result<()> {
+        let _ = std::fs::remove_file(self.rotated(self.keep));
+        for n in (1..self.keep).rev() {
+            let _ = std::fs::rename(self.rotated(n), self.rotated(n + 1));
+        }
+        std::fs::rename(&self.path, self.rotated(1))?;
+        *st = open_append(&self.path)?;
+        Ok(())
     }
 }
 
@@ -68,15 +124,25 @@ impl AuditSink for FileAudit {
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_millis())
             .unwrap_or(0);
-        let line = serde_json::json!({
-            "ts_ms": ts,
-            "window": e.window,
-            "command": e.command,
-            "decision": format!("{:?}", e.decision),
-        });
-        let mut f = self.file.lock().expect("audit file mutex");
-        if let Err(err) = writeln!(f, "{line}") {
-            tracing::error!(error = %err, "falha ao gravar auditoria");
+        let line = format!(
+            "{}
+",
+            serde_json::json!({
+                "ts_ms": ts,
+                "window": e.window,
+                "command": e.command,
+                "decision": format!("{:?}", e.decision),
+            })
+        );
+        let mut st = self.state.lock().expect("audit file mutex");
+        if st.size > 0 && st.size + line.len() as u64 > self.max_bytes {
+            if let Err(err) = self.rotate(&mut st) {
+                tracing::error!(error = %err, "falha ao rotacionar a auditoria");
+            }
+        }
+        match st.file.write_all(line.as_bytes()) {
+            Ok(()) => st.size += line.len() as u64,
+            Err(err) => tracing::error!(error = %err, "falha ao gravar auditoria"),
         }
     }
 }

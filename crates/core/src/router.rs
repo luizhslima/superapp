@@ -24,6 +24,21 @@ struct BytesCommand {
     handler: BytesHandler,
 }
 
+/// Trunca em 64 caracteres e troca por `?` tudo que não seja `[A-Za-z0-9_.:|-]`: sem quebras de
+/// linha, controles nem textos enormes no log de auditoria ou no console.
+fn sanitize_name(raw: &str) -> String {
+    raw.chars()
+        .take(64)
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || matches!(c, '_' | '.' | ':' | '|' | '-') {
+                c
+            } else {
+                '?'
+            }
+        })
+        .collect()
+}
+
 pub struct Router {
     commands: HashMap<String, Command>,
     bytes_commands: HashMap<String, BytesCommand>,
@@ -141,24 +156,21 @@ impl Router {
     /// Registra uma mensagem que o hook de isolamento barrou. O nome tentado vem da UI
     /// (não confiável): é truncado e sanitizado para não poluir nem forjar o log.
     pub fn audit_hook_rejection(&self, caller: &Caller, attempted: &str) {
-        let safe: String = attempted
-            .chars()
-            .take(64)
-            .map(|c| {
-                if c.is_ascii_alphanumeric() || matches!(c, '_' | '.' | ':' | '|' | '-') {
-                    c
-                } else {
-                    '?'
-                }
-            })
-            .collect();
-        self.record(caller, &safe, Decision::DeniedByHook);
+        self.record(caller, &sanitize_name(attempted), Decision::DeniedByHook);
     }
 
+    /// Toda negação passa por aqui: nomes e identidades vêm da UI (ou de canais que não
+    /// passam pelo hook, como `sapp://`) e podem ser hostis. Só `Allowed` carrega o nome
+    /// original, porque nesse caso ele existe no registro de comandos.
     fn record(&self, caller: &Caller, command: &str, decision: Decision) {
+        let (window, command) = if decision == Decision::Allowed {
+            (caller.window.clone(), command.to_owned())
+        } else {
+            (sanitize_name(&caller.window), sanitize_name(command))
+        };
         self.audit.record(AuditEvent {
-            window: caller.window.clone(),
-            command: command.to_owned(),
+            window,
+            command,
             decision,
         });
     }

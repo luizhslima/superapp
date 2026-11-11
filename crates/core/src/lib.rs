@@ -210,6 +210,65 @@ mod tests {
     }
 
     #[test]
+    fn hostile_names_never_reach_the_audit_log_raw() {
+        // `sapp://` não passa pelo hook: o nome chega cru da UI. Quebras de linha e textos
+        // gigantes não podem virar linhas forjadas no log nem no console.
+        let (r, audit) = setup();
+        let hostile = format!(
+            "fake\n{{\"decision\":\"Allowed\"}}\r\x1b[31m{}",
+            "x".repeat(500)
+        );
+        let _ = r.dispatch(&Caller::new("main"), &hostile, json!(null));
+        let _ = r.dispatch_bytes(&Caller::new("ja\nnela"), &hostile, &[1]);
+        let _ = r.dispatch(&Caller::new("other"), "add", json!({}));
+        for ev in audit.events() {
+            for field in [&ev.command, &ev.window] {
+                assert!(field.chars().count() <= 64, "{field:?}");
+                assert!(
+                    !field
+                        .chars()
+                        .any(|c| c.is_control() || c == '"' || c == '{'),
+                    "{field:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn file_audit_rotates_by_size_and_keeps_only_recent_files() {
+        let dir = std::env::temp_dir().join(format!("superapp-rot-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("audit.jsonl");
+        // Limite de 300 bytes e 2 arquivos antigos: com 60 eventos há várias rotações.
+        let sink = Arc::new(FileAudit::open_with(&path, 300, 2).unwrap());
+        let mut r = Router::new(Policy::new().grant("main", "math"), sink);
+        r.register("ping", "math", |_c, _a: serde_json::Value| Ok(1));
+        for _ in 0..60 {
+            r.dispatch(&Caller::new("main"), "ping", json!(null))
+                .unwrap();
+        }
+        let mut files: Vec<_> = std::fs::read_dir(&dir)
+            .unwrap()
+            .flatten()
+            .map(|e| e.file_name().to_string_lossy().into_owned())
+            .collect();
+        files.sort();
+        assert_eq!(files, vec!["audit.jsonl", "audit.jsonl.1", "audit.jsonl.2"]);
+        for f in &files {
+            let len = std::fs::metadata(dir.join(f)).unwrap().len();
+            assert!(len <= 300, "{f} tem {len} bytes (limite 300)");
+        }
+        // Os eventos mais recentes continuam no arquivo atual e as linhas estão inteiras.
+        let text = std::fs::read_to_string(&path).unwrap();
+        assert!(!text.is_empty());
+        for line in text.lines() {
+            serde_json::from_str::<serde_json::Value>(line).unwrap();
+        }
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
     fn ipc_error_serializes_with_stable_code() {
         let e = IpcError::new(ErrorCode::PermissionDenied, "x");
         assert_eq!(

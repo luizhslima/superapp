@@ -38,3 +38,11 @@ opt-level = 3
 opt-level = 3
 [profile.dev.package.wasmtime]
 opt-level = 3
+
+# Fuzz por mutação faz dezenas de milhares de verificações de assinatura: cripto otimizada.
+[profile.dev.package.curve25519-dalek]
+opt-level = 3
+[profile.dev.package.ed25519-dalek]
+opt-level = 3
+[profile.dev.package.sha2]
+opt-level = 3

@@ -84,10 +84,12 @@ Sem caso de uso concreto de IA/dados (Fase 3) nem de código nativo (Fase 4). Re
 
 ## Fase 5 (próxima)
 - ⚠️ **Lacuna do gate da Fase 2**: `07-quality-ci-release.md` lista `cargo-audit`, `cargo-deny` e fuzz de parsers (manifesto/pacote/UI/IPC) como parte da segurança do gate da Fase 2. **Não foram feitos.** Entram primeiro na Fase 5 (E5.4)
+- **Decisões (2026-11-10)**: telemetria = **relatório de diagnóstico local** (nada sai sozinho; o usuário vê e envia se quiser); distribuição = **catálogo estático assinado** (JSON assinado por nós em hospedagem gratuita; exige rede HTTPS restrita ao endereço do catálogo, auditada); começo = **endurecimento primeiro**
+- ✅ **E5.4 endurecimento (2026-11-10)**: `cargo-deny` na CI (`deny.toml`; advisories/licenças/bans/fontes ok), fuzz por mutação nos parsers (pacote, manifesto, UI, roteador), 4 alvos `cargo-fuzz` em workflow semanal, SBOM CycloneDX, **2 achados corrigidos** (nomes hostis no log de auditoria; log sem limite → rotação 5 MiB × 3). Relatório: [docs/security/self-audit.md](../security/self-audit.md). Falta validar na CI os workflows `fuzz` e `sbom`
 - Fases de trabalho propostas: E5.4 endurecimento (audit/deny/fuzz/SBOM) → E5.2 pipeline de release + auto-update → E5.1 distribuição de mini-apps → E5.5 docs + E5.3 diagnóstico → E5.6 beta
 
 ## Fase 1: fechamento
-E1.1–E1.5 concluídos. Pendências que sobram (não bloqueiam): rotação do log de auditoria; medir S3/S5 e benchmark em máquinas reais (Linux local, macOS quando houver); instaladores nunca executados fora do Windows (CI só constrói); assinatura/notarização (Fase 5); meta de RAM **revisada** em `00-vision-scope.md` (host ≤ 40 MB; WebView medido à parte, ainda sem alvo).
+E1.1–E1.5 concluídos. Pendências que sobram (não bloqueiam): (rotação do log de auditoria: feita em E5.4); medir S3/S5 e benchmark em máquinas reais (Linux local, macOS quando houver); instaladores nunca executados fora do Windows (CI só constrói); assinatura/notarização (Fase 5); meta de RAM **revisada** em `00-vision-scope.md` (host ≤ 40 MB; WebView medido à parte, ainda sem alvo).
 
 ## Gate da Fase 0
 ✅ Aceito em 2026-11-10 (Windows-only, ADR-007 adiado). Dívida: Linux/macOS na Fase 1.

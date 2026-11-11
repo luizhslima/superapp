@@ -1,0 +1,61 @@
+# cargo-deny: licenças, advisories (RustSec), bans e fontes. Roda na CI (job `supply-chain`).
+# Política: o projeto é distribuído em binário, então só licenças permissivas ou copyleft
+# fraco por arquivo (MPL-2.0). Nada de GPL/AGPL/LGPL como única opção.
+
+[graph]
+# Avalia todas as plataformas-alvo que distribuímos.
+targets = [
+  "x86_64-pc-windows-msvc",
+  "x86_64-unknown-linux-gnu",
+  "aarch64-apple-darwin",
+  "x86_64-apple-darwin",
+]
+
+[licenses]
+allow = [
+  "MIT",
+  "MIT-0",
+  "Apache-2.0",
+  "Apache-2.0 WITH LLVM-exception",
+  "BSD-1-Clause",
+  "BSD-2-Clause",
+  "BSD-3-Clause",
+  "0BSD",
+  "CC0-1.0",
+  "ISC",
+  "MPL-2.0",
+  "Unicode-3.0",
+  "Unlicense",
+  "Zlib",
+]
+confidence-threshold = 0.9
+
+# Crates do próprio repositório (publish = false) não precisam declarar licença.
+[licenses.private]
+ignore = true
+
+[bans]
+# Versões duplicadas só avisam: vêm de dependências transitivas do Tauri/Wasmtime.
+multiple-versions = "warn"
+wildcards = "deny"
+# Dependências por caminho entre crates do próprio repositório não são "curinga".
+allow-wildcard-paths = true
+# Evita trazer TLS nativo/OpenSSL por engano: a distribuição de mini-apps (E5.1) usará rustls.
+deny = [
+  { crate = "openssl" },
+  { crate = "openssl-sys" },
+  { crate = "native-tls" },
+]
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+
+[advisories]
+# Vulnerabilidades (RustSec) sempre falham. `unmaintained`/`yanked` falham só nas dependências
+# diretas do workspace; as transitivas viram aviso.
+unmaintained = "workspace"
+yanked = "deny"
+# Exceções devem ser raras e justificadas. Cada linha precisa de motivo e revisão.
+ignore = []

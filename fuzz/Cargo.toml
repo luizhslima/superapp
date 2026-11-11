@@ -1,0 +1,46 @@
+[package]
+name = "superapp-fuzz"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+serde_json = "1"
+superapp-package = { path = "../crates/package" }
+superapp-ui = { path = "../crates/ui" }
+superapp-core = { path = "../crates/core" }
+
+# Projeto independente (precisa de nightly): não faz parte do workspace principal.
+[workspace]
+
+[[bin]]
+name = "package_verify"
+path = "fuzz_targets/package_verify.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "manifest_json"
+path = "fuzz_targets/manifest_json.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "ui_parse"
+path = "fuzz_targets/ui_parse.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "router_dispatch"
+path = "fuzz_targets/router_dispatch.rs"
+test = false
+doc = false
+bench = false
