@@ -38,9 +38,17 @@ impl MemoryAudit {
 
 impl AuditSink for MemoryAudit {
     fn record(&self, event: AuditEvent) {
-        self.events.lock().expect("audit mutex").push(event);
+        let mut v = self.events.lock().expect("audit mutex");
+        // Memória limitada: ao passar do teto, descarta os mais antigos (10% de uma vez).
+        if v.len() >= MEMORY_MAX_EVENTS {
+            v.drain(..MEMORY_MAX_EVENTS / 10);
+        }
+        v.push(event);
     }
 }
+
+/// Teto de eventos guardados em memória por `MemoryAudit`.
+pub const MEMORY_MAX_EVENTS: usize = 100_000;
 
 /// Tamanho máximo de cada arquivo de auditoria antes de rotacionar (5 MiB).
 pub const DEFAULT_MAX_BYTES: u64 = 5 * 1024 * 1024;
@@ -161,5 +169,28 @@ impl AuditSink for TracingAudit {
                 tracing::warn!(window = %e.window, command = %e.command, decision = ?d, "ipc negado")
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod memory_tests {
+    use super::*;
+
+    #[test]
+    fn memory_audit_is_bounded_and_keeps_the_newest() {
+        let a = MemoryAudit::default();
+        for i in 0..(MEMORY_MAX_EVENTS + 5_000) {
+            a.record(AuditEvent {
+                window: "w".into(),
+                command: format!("c{i}"),
+                decision: Decision::Allowed,
+            });
+        }
+        let ev = a.events();
+        assert!(ev.len() <= MEMORY_MAX_EVENTS);
+        assert_eq!(
+            ev.last().unwrap().command,
+            format!("c{}", MEMORY_MAX_EVENTS + 4_999)
+        );
     }
 }

@@ -1,6 +1,7 @@
 //! Host Tauri: encaminha todo comando da UI para o `Router` do core.
 mod apps;
 mod diag;
+mod store;
 mod updates;
 
 use serde_json::{json, Value};
@@ -158,6 +159,7 @@ fn build_router(
         .grant("main", apps::CAP)
         .grant("main", updates::CAP)
         .grant("main", diag::CAP)
+        .grant("main", store::CAP)
         .grant("mfe-a", "app:read")
         .grant("mfe-b", "app:read");
     if bench_out.is_some() {
@@ -231,6 +233,7 @@ fn build_router(
     {
         Ok(st) => {
             apps::register(&mut r, st.clone());
+            store::register(&mut r, st.clone());
             app.manage(st);
         }
         Err(e) => tracing::error!(error = %e, "gerenciador de mini-apps desativado"),

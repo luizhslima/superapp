@@ -26,6 +26,7 @@ struct Pending {
 
 pub struct AppsState {
     registry: Registry,
+    trust: TrustStore,
     pending: Mutex<Vec<Pending>>,
 }
 
@@ -37,14 +38,20 @@ pub fn open(data_dir: PathBuf, audit: Arc<dyn AuditSink>) -> Result<Arc<AppsStat
         Ok(t) => TrustStore::from_hex_lines(&t)?,
         Err(_) => TrustStore::default(),
     };
-    let registry = Registry::open(data_dir, trust, audit).map_err(|e| e.to_string())?;
+    let registry = Registry::open(data_dir, trust.clone(), audit).map_err(|e| e.to_string())?;
     Ok(Arc::new(AppsState {
         registry,
+        trust,
         pending: Mutex::new(Vec::new()),
     }))
 }
 
 impl AppsState {
+    /// Chaves de autores confiáveis (a mesma lista vale para pacotes e para o catálogo).
+    pub fn trust(&self) -> &TrustStore {
+        &self.trust
+    }
+
     /// Resumo para o relatório de diagnóstico: só id, versão e estado (sem dados nem caminhos).
     pub fn summary(&self) -> Vec<Value> {
         self.registry
@@ -64,6 +71,12 @@ impl AppsState {
             return Err("esperado um arquivo .sapp".into());
         }
         let bytes = std::fs::read(path).map_err(|e| e.to_string())?;
+        self.stage_bytes(bytes)
+    }
+
+    /// Verifica um `.sapp` já em memória e o deixa pendente de consentimento. Vale para
+    /// arquivo arrastado e para download do catálogo: o caminho de verificação é o mesmo.
+    pub fn stage_bytes(&self, bytes: Vec<u8>) -> Result<(), String> {
         let preview = self.registry.inspect(&bytes).map_err(|e| e.to_string())?;
         let token = superapp_package::sha256_hex(&bytes);
         let mut p = self.pending.lock().expect("pending");

@@ -15,8 +15,9 @@ fn main() {
         "keygen" => keygen(),
         "pack" => pack_cmd(),
         "verify" => verify_cmd(),
+        "catalog" => catalog_cmd(),
         _ => {
-            eprintln!("uso: cargo xtask <fmt|lint|test|ci|smoke|bench|keygen|pack|verify>");
+            eprintln!("uso: cargo xtask <fmt|lint|test|ci|smoke|bench|keygen|pack|verify|catalog>");
             exit(2);
         }
     };
@@ -255,6 +256,11 @@ fn check_report(report: &Value) -> bool {
             "updates: janela sem capability não verifica nem instala atualização",
             code(&r["untrusted"]["upd"]) == "permission_denied"
                 && code(&r["untrusted"]["updInstall"]) == "permission_denied",
+        ),
+        (
+            "store: janela sem capability não lê catálogo nem baixa",
+            code(&r["untrusted"]["storeCat"]) == "permission_denied"
+                && code(&r["untrusted"]["storeDl"]) == "permission_denied",
         ),
         (
             "diag: janela sem capability não gera relatório",
@@ -623,4 +629,92 @@ fn verify_cmd() -> bool {
             false
         }
     }
+}
+
+/// `cargo xtask catalog <chave.key> <entradas.json> <saida.json> [dias]`
+/// `entradas.json`: lista de `{ id, name, version, url, file }`; `file` é o `.sapp` local, de onde
+/// saem o SHA-256 e o tamanho. O catálogo sai assinado e com validade (padrão 90 dias).
+fn catalog_cmd() -> bool {
+    let a: Vec<String> = std::env::args().skip(2).collect();
+    if a.len() < 3 || a.len() > 4 {
+        eprintln!("uso: cargo xtask catalog <chave.key> <entradas.json> <saida.json> [dias]");
+        return false;
+    }
+    let days: u64 = a.get(3).and_then(|d| d.parse().ok()).unwrap_or(90);
+    let Some(key) = load_key(&a[0]) else {
+        eprintln!("chave privada inválida (esperado 64 hex)");
+        return false;
+    };
+    let Ok(text) = std::fs::read_to_string(&a[1]) else {
+        eprintln!("não consegui ler {}", a[1]);
+        return false;
+    };
+    let Ok(Value::Array(items)) = serde_json::from_str::<Value>(&text) else {
+        eprintln!("entradas.json precisa ser uma lista");
+        return false;
+    };
+    let base = std::path::Path::new(&a[1])
+        .parent()
+        .map(std::path::Path::to_path_buf)
+        .unwrap_or_default();
+    let mut entries = Vec::new();
+    for it in &items {
+        let field = |k: &str| it[k].as_str().map(str::to_string);
+        let (Some(id), Some(name), Some(version), Some(url), Some(file)) = (
+            field("id"),
+            field("name"),
+            field("version"),
+            field("url"),
+            field("file"),
+        ) else {
+            eprintln!("entrada sem id/name/version/url/file: {it}");
+            return false;
+        };
+        let Ok(bytes) = std::fs::read(base.join(&file)) else {
+            eprintln!("não consegui ler {file}");
+            return false;
+        };
+        entries.push(superapp_package::catalog::Entry {
+            id,
+            name,
+            version,
+            url,
+            sha256: superapp_package::sha256_hex(&bytes),
+            size: bytes.len() as u64,
+        });
+    }
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    let cat = superapp_package::catalog::Catalog {
+        format: 1,
+        issued_at: now,
+        expires_at: now + days * 86_400,
+        entries,
+    };
+    let signed = match superapp_package::catalog::sign(&key, &cat) {
+        Ok(b) => b,
+        Err(e) => {
+            eprintln!("falha ao assinar: {e}");
+            return false;
+        }
+    };
+    // Confere o próprio resultado antes de gravar: nunca publicar catálogo que não verifica.
+    let trust = superapp_package::TrustStore::new(vec![*key.verifying_key().as_bytes()]);
+    if let Err(e) = superapp_package::catalog::verify(&signed, &trust, now) {
+        eprintln!("o catálogo gerado não passou na verificação: {e}");
+        return false;
+    }
+    if std::fs::write(&a[2], &signed).is_err() {
+        eprintln!("não consegui gravar {}", a[2]);
+        return false;
+    }
+    println!(
+        "{}: {} entradas, válido por {days} dias, assinado por {}",
+        a[2],
+        cat.entries.len(),
+        superapp_package::to_hex(key.verifying_key().as_bytes())
+    );
+    true
 }

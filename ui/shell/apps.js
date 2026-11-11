@@ -201,6 +201,32 @@
       if (!r.ok) status(errText(r), true);
       $("update-install").disabled = false;
     });
+    $("store-load").addEventListener("click", async () => {
+      status("Carregando catálogo...");
+      const r = await window.host("store.catalog");
+      const ul = $("store-list");
+      ul.replaceChildren();
+      if (!r.ok) return status(errText(r), true);
+      status("");
+      if (r.value.entries.length === 0) ul.append(el("li", "Catálogo vazio."));
+      for (const e of r.value.entries) {
+        const li = el("li");
+        li.append(el("span", `${e.name} ${e.version}`, "app-name"));
+        const b = el("button", "Baixar");
+        b.type = "button";
+        b.addEventListener("click", async () => {
+          b.disabled = true;
+          status(`Baixando ${e.name}...`);
+          const d = await window.host("store.download", { id: e.id });
+          b.disabled = false;
+          if (!d.ok) return status(errText(d), true);
+          status(`${e.name} baixado e verificado: revise as permissões abaixo.`);
+          refreshPending();
+        });
+        li.append(b);
+        ul.append(li);
+      }
+    });
     $("diag-run").addEventListener("click", async () => {
       const r = await window.host("diag.report");
       if (!r.ok) return status(errText(r), true);
