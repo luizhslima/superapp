@@ -18,6 +18,13 @@
     <button id="update-install" type="button" hidden>Instalar e reiniciar</button>
   </section>
 
+  <section aria-labelledby="h-diag">
+    <h2 id="h-diag">Relatório de diagnóstico</h2>
+    <p class="hint">Gerado só quando você pede, fica nesta tela e nada é enviado. Sem caminhos, nomes de usuário nem dados dos mini-apps.</p>
+    <button id="diag-run" type="button">Gerar relatório</button>
+    <textarea id="diag-out" readonly rows="10" hidden aria-label="Relatório de diagnóstico"></textarea>
+  </section>
+
   <section aria-labelledby="h-pending" id="pending-section" hidden>
     <h2 id="h-pending">Aguardando seu consentimento</h2>
     <div id="pending"></div>

@@ -9,6 +9,7 @@
 //! do wasm. Verificação: estrutura → signatário confiável → assinatura → manifesto → hash.
 //! Todo tamanho é checado contra tetos **antes** de qualquer alocação ou fatiamento.
 
+pub mod catalog;
 pub mod manifest;
 
 use ed25519_dalek::{Signature, Signer, SigningKey, VerifyingKey};

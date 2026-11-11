@@ -201,6 +201,13 @@
       if (!r.ok) status(errText(r), true);
       $("update-install").disabled = false;
     });
+    $("diag-run").addEventListener("click", async () => {
+      const r = await window.host("diag.report");
+      if (!r.ok) return status(errText(r), true);
+      const out = $("diag-out");
+      out.value = JSON.stringify(r.value, null, 2);
+      out.hidden = false;
+    });
     // O Rust avisa quando um arquivo foi arrastado (null = ok, texto = motivo da recusa).
     try {
       await window.__TAURI__.event.listen("apps://staged", (e) => {

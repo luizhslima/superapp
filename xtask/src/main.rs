@@ -256,6 +256,10 @@ fn check_report(report: &Value) -> bool {
             code(&r["untrusted"]["upd"]) == "permission_denied"
                 && code(&r["untrusted"]["updInstall"]) == "permission_denied",
         ),
+        (
+            "diag: janela sem capability não gera relatório",
+            code(&r["untrusted"]["diag"]) == "permission_denied",
+        ),
     ]);
 
     let m = &r["mfe"];

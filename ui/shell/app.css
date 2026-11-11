@@ -85,3 +85,9 @@ button.danger { color: var(--danger); }
 #view { border: 1px solid var(--line); border-radius: 8px; padding: 12px 16px; margin-bottom: 8px; }
 #view .stack { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
 #view p { margin: 0; }
+
+textarea {
+  width: 100%;
+  box-sizing: border-box;
+  font: 12px ui-monospace, Consolas, monospace;
+}

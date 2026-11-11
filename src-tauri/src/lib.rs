@@ -1,5 +1,6 @@
 //! Host Tauri: encaminha todo comando da UI para o `Router` do core.
 mod apps;
+mod diag;
 mod updates;
 
 use serde_json::{json, Value};
@@ -129,8 +130,12 @@ fn build_router(
     app: tauri::AppHandle,
 ) -> Router {
     let memory = Arc::new(MemoryAudit::default());
-    let mut sinks: Vec<Arc<dyn AuditSink>> =
-        vec![Arc::new(TracingAudit), memory.clone() as Arc<dyn AuditSink>];
+    let diag = Arc::new(diag::DiagAudit::default());
+    let mut sinks: Vec<Arc<dyn AuditSink>> = vec![
+        Arc::new(TracingAudit),
+        memory.clone() as Arc<dyn AuditSink>,
+        diag.clone() as Arc<dyn AuditSink>,
+    ];
     // Trilha persistente em <log_dir>/audit.jsonl (JSONL, append).
     match app.path().app_log_dir() {
         Ok(dir) => match std::fs::create_dir_all(&dir)
@@ -152,6 +157,7 @@ fn build_router(
         .grant("main", "blob:use")
         .grant("main", apps::CAP)
         .grant("main", updates::CAP)
+        .grant("main", diag::CAP)
         .grant("mfe-a", "app:read")
         .grant("mfe-b", "app:read");
     if bench_out.is_some() {
@@ -230,6 +236,7 @@ fn build_router(
         Err(e) => tracing::error!(error = %e, "gerenciador de mini-apps desativado"),
     }
     updates::register(&mut r, app.clone());
+    diag::register(&mut r, diag, start, app.clone());
     // Existe, mas nenhuma janela tem a capability: serve para provar o bloqueio.
     r.register("debug.privileged", "debug:privileged", |_c, _a: Value| {
         Ok(json!("segredo"))

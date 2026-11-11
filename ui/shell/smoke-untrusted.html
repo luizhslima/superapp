@@ -14,7 +14,8 @@
       const appsRun = await window.host("apps.dispatch", { id: "clicker", event: { type: "init" } });
       const upd = await window.host("app.update.check");
       const updInstall = await window.host("app.update.install");
-      bc.postMessage({ info, echo, bytes, blob, apps, appsRun, upd, updInstall });
+      const diag = await window.host("diag.report");
+      bc.postMessage({ info, echo, bytes, blob, apps, appsRun, upd, updInstall, diag });
     })();
   </script>
 </body></html>

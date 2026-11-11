@@ -45,6 +45,15 @@ pub fn open(data_dir: PathBuf, audit: Arc<dyn AuditSink>) -> Result<Arc<AppsStat
 }
 
 impl AppsState {
+    /// Resumo para o relatório de diagnóstico: só id, versão e estado (sem dados nem caminhos).
+    pub fn summary(&self) -> Vec<Value> {
+        self.registry
+            .list()
+            .iter()
+            .map(|a| json!({ "id": a.id, "version": a.version, "enabled": a.enabled, "problem": a.problem.is_some() }))
+            .collect()
+    }
+
     /// Lê um `.sapp` do disco, verifica e deixa pendente de consentimento.
     pub fn stage_path(&self, path: &Path) -> Result<(), String> {
         let meta = std::fs::metadata(path).map_err(|e| e.to_string())?;
