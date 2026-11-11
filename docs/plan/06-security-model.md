@@ -59,6 +59,7 @@ Todos rodam em `cargo test` (e portanto na CI de Windows, Linux e macOS). "Conti
 | Falha (panic) do guest | `ui_attacks::panic_in_guest...` | Trap contido; host segue |
 | Um app malicioso afetando outro | `ui_attacks::a_misbehaving_app...` | Sem efeito (instâncias e dados separados) |
 | Vazamento de estado entre execuções | `ui_attacks::repeated_runs...` | Instância nova por execução |
+| Rede por qualquer caminho (inclusive `fetch` embutido num interpretador) | `js_guest` + ausência de `wasi:http` no linker | O host nunca liga `wasi:http`/sockets: um componente que os importe nem carrega |
 | Mini-app sem capability no shell (janela `untrusted`) chamando `apps.*` | smoke (`apps: janela sem capability...`) | `permission_denied` |
 
 **Limites conhecidos (não contidos nesta fase):** canais laterais de tempo (o relógio WASI existe para o guest); o detector de segredos pega só padrões conhecidos; sem revogação central de chaves nem auto-update (Fase 5).

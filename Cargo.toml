@@ -21,3 +21,20 @@ all = { level = "warn", priority = -1 }
 lto = "fat"
 codegen-units = 1
 strip = "symbols"
+
+# Testes e smoke compilam componentes grandes (ex.: o interpretador JS de 11 MB). O Cranelift em
+# opt-level 0 leva ~100 s para isso; otimizado, segundos. Só afeta builds de desenvolvimento.
+[profile.dev.package.cranelift-codegen]
+opt-level = 3
+[profile.dev.package.cranelift-frontend]
+opt-level = 3
+[profile.dev.package.cranelift-native]
+opt-level = 3
+[profile.dev.package.regalloc2]
+opt-level = 3
+[profile.dev.package.wasmtime-internal-cranelift]
+opt-level = 3
+[profile.dev.package.wasmtime-environ]
+opt-level = 3
+[profile.dev.package.wasmtime]
+opt-level = 3

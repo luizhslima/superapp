@@ -13,3 +13,7 @@ target-iso/
 
 # Chaves privadas de assinatura de mini-apps: nunca versionar.
 *.key
+
+# Mini-apps compilados (artefatos locais)
+miniapps/**/*.wasm
+miniapps/**/.build/

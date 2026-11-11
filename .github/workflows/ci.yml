@@ -29,7 +29,12 @@ jobs:
           components: clippy, rustfmt
           targets: wasm32-wasip2
       - uses: Swatinem/rust-cache@v2
+      # Segundo idioma (E2.5): mini-app em JavaScript, componente gerado pelo jco (versão fixa).
+      - name: Compilar o mini-app JavaScript
+        run: node miniapps/clicker-js/build.mjs
       - run: cargo xtask ci
+        env:
+          SUPERAPP_REQUIRE_JS: "1" # sem o componente JS o teste falha em vez de ser pulado
       # Smoke do app real (2 janelas, capabilities, hook de isolamento, auditoria).
       - name: Smoke (Linux, xvfb)
         if: runner.os == 'Linux'

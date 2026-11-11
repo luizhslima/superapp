@@ -56,6 +56,30 @@ Compile: `cargo build --release --target wasm32-wasip2` (uma vez: `rustup target
 Exemplos completos: [`miniapps/clicker`](../../miniapps/clicker) (SDK) e
 [`miniapps/counter`](../../miniapps/counter) (WIT direto, sem SDK).
 
+## Outras linguagens (exemplo: JavaScript)
+
+O contrato é o WIT, então qualquer linguagem com ferramenta de componentes serve.
+[`miniapps/clicker-js`](../../miniapps/clicker-js) é o mesmo `clicker` em JavaScript, compilado
+com [`jco componentize`](https://github.com/bytecodealliance/jco) (versão fixa em `build.mjs`):
+
+```bash
+node miniapps/clicker-js/build.mjs   # gera clicker-js.wasm (~11,5 MB; precisa de Node 20+)
+```
+
+Três pontos que só aparecem ao sair do Rust:
+
+1. **Declare um mundo WIT enxuto.** O `jco` não remove importações não usadas: com o mundo
+   completo do host o componente exigiria `log`, `storage` e `clock` mesmo usando só uma, e o
+   usuário veria três permissões. O `build.mjs` gera um mundo `app` que importa só
+   `superapp:host/storage`. Faça o mesmo com o que o seu app usa. (No SDK Rust isso é
+   automático: o linker remove o código morto.)
+2. **Desabilite `http`/`fetch-event`.** O interpretador embute `fetch`, que importa `wasi:http`.
+   O host **nunca** liga `wasi:http`, então o componente nem carregaria; `--disable http
+   fetch-event` o remove.
+3. **Custo.** O interpretador (SpiderMonkey) vai dentro do componente: ~11,5 MB e ~8,5 s para
+   compilar a primeira vez (feito na **instalação**, não no primeiro clique). Depois, cada
+   execução leva poucos ms e ~10 M de fuel, dentro dos limites padrão.
+
 ## Eventos e UI
 
 | Entrada (`Event`) | Quando |
@@ -75,8 +99,9 @@ desenhada. Não há como injetar HTML, estilo ou script.
 
 ## Permissões
 
-Cada interface do host é uma permissão. Só as que o seu código **de fato usa** viram
-importações do componente, e o manifesto deve declarar **exatamente** essas.
+Cada interface do host é uma permissão. O manifesto deve declarar **exatamente** as que o
+componente importa. Em Rust (com o SDK) isso é só o que o código usa; em outras linguagens
+veja "Outras linguagens" acima.
 
 | Permissão | O que dá | API do SDK |
 |---|---|---|

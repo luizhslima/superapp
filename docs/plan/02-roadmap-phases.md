@@ -31,6 +31,8 @@ flowchart LR
 - **Entregáveis**: Wasmtime embutido; WIT da API do host (v0); fuel e limites de memória; formato de pacote + manifesto de permissões + assinatura; loader e ciclo de vida (instalar/executar/suspender/remover); SDK mínimo; 2 mini-apps de exemplo (Rust + outra linguagem); UI de consentimento de permissões.
 - **Gate**: suíte de ataques (loop infinito, estouro de memória, acesso a FS/rede não declarado, manifesto adulterado) 100% contida; mini-app exemplo roda nos 3 SOs.
 
+> **Gate da Fase 2: ✅ aceito em 2026-11-10.** Suíte de ataques 100% contida (matriz em [06-security-model.md](06-security-model.md)); mini-apps de exemplo (Rust com SDK e JavaScript) rodando nos 3 SOs em CI; pacote assinado, consentimento, ciclo de vida e UI declarativa entregues. **Ressalvas**: (1) o contrato só foi provado com Rust e JavaScript (C/Go sem toolchain local); (2) o app JS leva ~8,5 s para compilar na instalação e recompila após reiniciar (cache seguro em disco pendente); (3) tamanho do instalador ~5,55 MiB com Wasmtime, aceito; (4) sem revogação central de chaves nem auto-update (Fase 5). Ver [TODO](TODO.md).
+
 ## Fase 3 · Camada Python/IA (~4–6 sem, conforme S1)
 - **Objetivo**: capacidade analítica/IA no host.
 - **Entregáveis**: Python como módulo opcional (download sob demanda); pool de interpretadores ou worker isolado (decidido em ADR-003); ponte Arrow zero-copy; uma feature real de IA/dados exposta à UI e ao WIT; gestão do ciclo de vida/erros (sem processos zumbi).

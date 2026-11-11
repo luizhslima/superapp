@@ -1,0 +1,7 @@
+{
+  "schema": 1,
+  "id": "clicker-js",
+  "name": "Clicker (JavaScript)",
+  "version": "0.1.0",
+  "permissions": ["storage"]
+}

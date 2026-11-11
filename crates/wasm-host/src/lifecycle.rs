@@ -276,9 +276,18 @@ impl Registry {
             enabled: true,
             problem: None,
         };
-        let mut g = self.inner.lock().expect("registry");
-        g.loaded.remove(&id);
-        g.apps.insert(id, installed.clone());
+        {
+            let mut g = self.inner.lock().expect("registry");
+            g.loaded.remove(&id);
+            g.apps.insert(id.clone(), installed.clone());
+        }
+        // Compila já na instalação (o usuário está esperando a confirmação), não no primeiro
+        // clique: componentes grandes (ex.: guest JS de ~11 MB) levam segundos para compilar.
+        // Se falhar (ex.: permissão negada pelo usuário), a instalação continua válida e o erro
+        // aparece ao abrir o app.
+        if let Err(e) = self.loaded(&id) {
+            tracing::info!(app = %id, error = %e, "pré-carga na instalação não concluída");
+        }
         Ok(installed)
     }
 
