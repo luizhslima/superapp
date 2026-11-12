@@ -23,6 +23,7 @@ Transforma a [investigação v1](../investigation-v1.md) em um plano executável
 | [08](08-repo-structure.md) | Layout do monorepo |
 | [09](09-working-with-ai.md) | Fluxo dev solo + IA |
 | [10](10-radar-gpui-shell.md) | Radar: casca alternativa em GPUI (spike + beta paralela) |
+| [11](11-feature-startup-toolkit-discovery.md) | Feature: ferramentas de apoio à criação de startups (fase 1: Discovery) |
 | [TODO](TODO.md) | Pendências vivas, validação macOS/Linux, custo zero |
 
 ## Síntese das principais conclusões

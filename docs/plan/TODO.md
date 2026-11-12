@@ -98,6 +98,7 @@ Sem caso de uso concreto de IA/dados (Fase 3) nem de código nativo (Fase 4). Re
   5. `cargo xtask new-app <id>` / `build-app <id> <chave>` (gabarito = cópia de `tarefas`), e "Instalar de um arquivo .sapp" (`apps.pick`)
 - ⏸️ **E5.6 beta fechado (2026-11-11)**: adiado por decisão do usuário; o app segue para uso pessoal (mini-apps próprios), sem testadores externos por enquanto
 - 🔭 **Radar (2026-11-12)**: casca alternativa em GPUI (spike isolado → beta paralela opt-in), não iniciada; detalhes e critérios em [10-radar-gpui-shell.md](10-radar-gpui-shell.md)
+- 🗺️ **Feature: ferramentas para criação de startups, fase Discovery (2026-11-12)**: planejada, nada implementado. Mini-app Wasm `discovery`; trilha A (bancada manual: hipóteses, entrevistas, evidências, decisão) + trilha B (automação de escuta: só ADR e spike). Plano em [11-feature-startup-toolkit-discovery.md](11-feature-startup-toolkit-discovery.md); pesquisa em `docs/research/`
 - Fases de trabalho propostas: E5.4 endurecimento (audit/deny/fuzz/SBOM) → E5.2 pipeline de release + auto-update → E5.1 distribuição de mini-apps → E5.5 docs + E5.3 diagnóstico → E5.6 beta
 
 ## Fase 1: fechamento
