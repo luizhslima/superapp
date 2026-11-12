@@ -14,3 +14,5 @@ Formato: Status · Contexto · Decisão · Consequências · Alternativas · Ris
 | [008](ADR-008-monorepo-tooling.md) | Monorepo e tooling | Accepted (`cargo xtask`) |
 | [009](ADR-009-miniapp-ui.md) | UI de mini-apps | Accepted (declarativa no v0) |
 | [010](ADR-010-package-format-signing.md) | Pacote `.sapp` e assinatura | Accepted (Ed25519, container próprio) |
+| [011](ADR-011-miniapp-network.md) | Rede para mini-apps: permissão `http` mediada pelo host | Proposed |
+| [012](ADR-012-web-miniapps.md) | Mini-apps web estáticos (Next/Vite exportados) em webview isolada | Proposed (adiado até haver caso real) |

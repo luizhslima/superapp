@@ -1,6 +1,6 @@
 # Feature: ferramentas de apoio à criação de startups (fase 1: Discovery)
 
-**Status:** planejamento (2026-11-12). Nada implementado.
+**Status:** D0 (modelo de dados) e D1 (`textarea`) feitos em 2026-11-12; mini-app ainda não começou.
 **Pesquisa de base:** [docs/research/](../research/)
 ([Customer Discovery B2B e stack open source](../research/customer-discovery-b2b-e-stack-opensource.md),
 [literatura sobre IA e ciclo de validação](../research/literatura-ia-e-ciclo-de-validacao.md)).
@@ -65,9 +65,9 @@ declarativa; o estado vive no storage (cada evento roda numa instância nova).
 
 ### Entregas da trilha A
 
-- **D0** Modelo de dados + esquema de chaves do storage, versionado (`schema: 1`), com migração
+- ✅ **D0** Modelo de dados + esquema de chaves do storage, versionado (`schema: 1`), com migração
   prevista. Doc curto em `docs/dev/`.
-- **D1** `textarea` na UI declarativa (crate `ui`, renderer do shell, SDK, testes, fuzz).
+- ✅ **D1** `textarea` na UI declarativa (crate `ui`, renderer do shell, SDK, testes, fuzz).
 - **D2** Mini-app `discovery`: Território, Hipóteses, Entrevistas (testes de ponta a ponta em Wasm,
   como `tarefas`).
 - **D3** Evidências, painel e decisão.
@@ -107,7 +107,7 @@ de dar rede ao host.
 
 ### Entregas da trilha B
 
-- **B0** ADR "capacidades de rede/IA e execução periódica para mini-apps" (Proposed).
+- ✅ **B0** [ADR-011](04-adrs/ADR-011-miniapp-network.md): rede mediada pelo host (`http`), com `llm`, cofre de segredos e execução periódica como passos seguintes (Proposed). Mini-app com UI própria (Next/Vite estático): [ADR-012](04-adrs/ADR-012-web-miniapps.md), adiado.
 - **B1** Spike do coletor com **inbox de arquivo** (sem mexer no host) + relatório curto.
 - **B2** Só se B1 provar valor: implementar a capability escolhida no ADR, com testes de negação
   (política, domínios, tamanho) e smoke.
