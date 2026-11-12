@@ -159,10 +159,7 @@ async fn a_misbehaving_app_does_not_affect_another_installed_app() {
     set_mode(&root, "spin");
     assert!(run(&reg).await.is_err());
     // O outro app continua normal e com seus próprios dados.
-    let ui = reg
-        .dispatch("clicker", &Event::Click { id: "inc".into() })
-        .await
-        .unwrap();
+    let ui = reg.dispatch("clicker", &Event::click("inc")).await.unwrap();
     assert!(matches!(ui, Node::Stack { .. }));
     // O storage do atacante não é visível ao clicker (diretórios separados por id).
     assert!(root.join("data/attack").exists() && root.join("data/clicker").exists());

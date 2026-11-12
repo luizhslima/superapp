@@ -1,0 +1,32 @@
+# Avisa antes do catálogo assinado vencer: o app recusa catálogo expirado, então a loja
+# pararia de funcionar. Roda toda segunda; se faltarem menos de 21 dias, a execução falha e o
+# GitHub manda e-mail. Para renovar: `cargo xtask catalog` (ver docs/dev/release.md).
+name: catalog-check
+
+on:
+  schedule:
+    - cron: "0 12 * * 1"
+  workflow_dispatch:
+  push:
+    paths: ["catalog/**", ".github/workflows/catalog-check.yml"]
+
+permissions:
+  contents: read
+
+jobs:
+  expiry:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Conferir a validade do catálogo
+        run: |
+          python3 - <<'PY'
+          import json, sys, time
+          env = json.load(open("catalog/catalog.json", encoding="utf-8"))
+          cat = json.loads(env["payload"])
+          left = (cat["expires_at"] - time.time()) / 86400
+          print(f"catálogo vence em {left:.1f} dias ({len(cat['entries'])} entradas)")
+          if left < 21:
+              print("::error::o catálogo vence em menos de 21 dias: renove com `cargo xtask catalog`")
+              sys.exit(1)
+          PY

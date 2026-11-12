@@ -17,14 +17,18 @@ impl Rng {
 
 fn depth(n: &Node) -> usize {
     match n {
-        Node::Stack { children } => 1 + children.iter().map(depth).max().unwrap_or(0),
+        Node::Stack { children } | Node::Row { children } => {
+            1 + children.iter().map(depth).max().unwrap_or(0)
+        }
         _ => 1,
     }
 }
 
 fn count(n: &Node) -> usize {
     match n {
-        Node::Stack { children } => 1 + children.iter().map(count).sum::<usize>(),
+        Node::Stack { children } | Node::Row { children } => {
+            1 + children.iter().map(count).sum::<usize>()
+        }
         _ => 1,
     }
 }
@@ -34,6 +38,8 @@ fn mutated_ui_trees_never_panic_and_accepted_ones_respect_limits() {
     let seeds = [
         r#"{"type":"stack","children":[{"type":"text","text":"oi"},{"type":"button","id":"inc","label":"+"},{"type":"list","items":["a","b","c"]}]}"#,
         r#"{"type":"text","text":"só texto com acentuação ção"}"#,
+        r#"{"type":"stack","children":[{"type":"heading","text":"T"},{"type":"row","children":[{"type":"input","id":"a","label":"x","value":"v"},{"type":"button","id":"ok","label":"Ok"}]},{"type":"checkbox","id":"c","label":"y","checked":true},{"type":"select","id":"s","label":"z","options":["a","b"],"selected":"b"},{"type":"divider"},{"type":"progress","value":10}]}"#,
+        r#"{"type":"action_list","items":[{"text":"a","done":true,"actions":[{"id":"x","label":"X"}]},{"text":"b"}]}"#,
         r#"{"type":"stack","children":[{"type":"stack","children":[{"type":"text","text":"x"}]}]}"#,
     ];
     let mut rng = Rng(0x1234_5678_9ABC_DEF1);
@@ -91,6 +97,6 @@ fn arbitrary_events_never_panic() {
         let id: String = (0..n)
             .map(|_| char::from_u32(rng.next() as u32 % 0x300).unwrap_or('x'))
             .collect();
-        let _ = Event::Click { id }.validate();
+        let _ = Event::click(id).validate();
     }
 }

@@ -16,8 +16,10 @@ fn main() {
         "pack" => pack_cmd(),
         "verify" => verify_cmd(),
         "catalog" => catalog_cmd(),
+        "new-app" => new_app_cmd(),
+        "build-app" => build_app_cmd(),
         _ => {
-            eprintln!("uso: cargo xtask <fmt|lint|test|ci|smoke|bench|keygen|pack|verify|catalog>");
+            eprintln!("uso: cargo xtask <fmt|lint|test|ci|smoke|bench|keygen|pack|verify|catalog|new-app|build-app>");
             exit(2);
         }
     };
@@ -265,6 +267,35 @@ fn check_report(report: &Value) -> bool {
         (
             "diag: janela sem capability não gera relatório",
             code(&r["untrusted"]["diag"]) == "permission_denied",
+        ),
+        (
+            "trust: janela sem capability não vê nem muda as chaves confiáveis",
+            ["trustList", "trustAdd", "trustRm"]
+                .iter()
+                .all(|k| code(&r["untrusted"][*k]) == "permission_denied"),
+        ),
+        (
+            "data/apps.pick/restart: janela sem capability não exporta, importa, escolhe arquivo nem reinicia",
+            ["dataExp", "dataImp", "appsPick", "restart"]
+                .iter()
+                .all(|k| code(&r["untrusted"][*k]) == "permission_denied"),
+        ),
+        (
+            "ui: valores de campos no clique são validados e o formato antigo segue valendo",
+            ap["click_values"]["ok"] == true
+                && code(&ap["bad_values"]) == "invalid_args"
+                && code(&ap["bad_value_text"]) == "invalid_args"
+                && code(&ap["unknown_event_field"]) == "invalid_args",
+        ),
+        (
+            "trust: lista funciona na janela principal; entrada ruim ou ausente é recusada",
+            ap["trust_list"]["ok"] == true
+                && code(&ap["trust_bad"]) == "invalid_args"
+                && code(&ap["trust_missing"]) == "not_found",
+        ),
+        (
+            "data: backup de mini-app inexistente falha sem abrir diálogo",
+            code(&ap["export_missing"]) == "not_found",
         ),
     ]);
 
@@ -560,6 +591,10 @@ fn pack_cmd() -> bool {
         eprintln!("uso: cargo xtask pack <app.wasm> <manifest.json> <chave.key> <saida.sapp>");
         return false;
     };
+    pack_files(wasm, manifest, key, out)
+}
+
+fn pack_files(wasm: &str, manifest: &str, key: &str, out: &str) -> bool {
     let (Ok(wasm), Ok(mtext)) = (std::fs::read(wasm), std::fs::read_to_string(manifest)) else {
         eprintln!("não consegui ler o wasm ou o manifesto");
         return false;
@@ -717,4 +752,107 @@ fn catalog_cmd() -> bool {
         superapp_package::to_hex(key.verifying_key().as_bytes())
     );
     true
+}
+
+/// `cargo xtask new-app <id> [Nome]`: cria `miniapps/<id>/` a partir do app `tarefas` (que é
+/// testado de ponta a ponta), com Cargo.toml e manifesto já ajustados ao novo id.
+fn new_app_cmd() -> bool {
+    let a: Vec<String> = std::env::args().skip(2).collect();
+    let Some(id) = a.first() else {
+        eprintln!("uso: cargo xtask new-app <id> [Nome]   (id: letras minúsculas, dígitos e '-')");
+        return false;
+    };
+    if !superapp_package::valid_app_id(id) {
+        eprintln!("id inválido: use [a-z0-9-], de 1 a 32 caracteres");
+        return false;
+    }
+    let name = a.get(1).cloned().unwrap_or_else(|| id.clone());
+    let dir = std::path::Path::new("miniapps").join(id);
+    if dir.exists() {
+        eprintln!("{} já existe; recuso sobrescrever", dir.display());
+        return false;
+    }
+    let cargo = include_str!("../../miniapps/tarefas/Cargo.toml").replacen(
+        "name = \"tarefas\"",
+        &format!("name = \"{id}\""),
+        1,
+    );
+    let manifest = serde_json::json!({
+        "schema": 1, "id": id, "name": name, "version": "0.1.0", "permissions": ["storage"]
+    });
+    let files: [(&str, String); 3] = [
+        ("Cargo.toml", cargo),
+        (
+            "manifest.json",
+            serde_json::to_string_pretty(&manifest).unwrap_or_default() + "\n",
+        ),
+        (
+            "src/lib.rs",
+            include_str!("../../miniapps/tarefas/src/lib.rs").to_string(),
+        ),
+    ];
+    if std::fs::create_dir_all(dir.join("src")).is_err() {
+        eprintln!("não consegui criar {}", dir.display());
+        return false;
+    }
+    for (path, content) in files {
+        if std::fs::write(dir.join(path), content).is_err() {
+            eprintln!("não consegui gravar {path}");
+            return false;
+        }
+    }
+    println!("criado miniapps/{id}");
+    println!("  1. edite miniapps/{id}/src/lib.rs (e as permissões em manifest.json)");
+    println!("  2. cargo xtask build-app {id} <sua-chave.key>   # compila e empacota");
+    println!(
+        "  3. arraste miniapps/{id}/{id}.sapp para o Superapp (ou use \"Instalar de um arquivo\")"
+    );
+    true
+}
+
+/// `cargo xtask build-app <id> <chave.key> [saida.sapp]`: compila `miniapps/<id>` (Rust) para
+/// wasm32-wasip2 e empacota/assina com o manifesto do diretório. Saída padrão: `<id>.sapp` ali.
+fn build_app_cmd() -> bool {
+    let a: Vec<String> = std::env::args().skip(2).collect();
+    if a.len() < 2 || a.len() > 3 {
+        eprintln!("uso: cargo xtask build-app <id> <chave.key> [saida.sapp]");
+        return false;
+    }
+    let id = &a[0];
+    if !superapp_package::valid_app_id(id) {
+        eprintln!("id inválido");
+        return false;
+    }
+    let dir = std::path::Path::new("miniapps").join(id);
+    if !dir.join("Cargo.toml").is_file() || !dir.join("manifest.json").is_file() {
+        eprintln!(
+            "{} precisa de Cargo.toml e manifest.json (só apps Rust; JavaScript: veja build.mjs)",
+            dir.display()
+        );
+        return false;
+    }
+    let built = Command::new("cargo")
+        .args(["build", "--release", "--target", "wasm32-wasip2"])
+        .current_dir(&dir)
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false);
+    if !built {
+        eprintln!("a compilação falhou (uma vez: rustup target add wasm32-wasip2)");
+        return false;
+    }
+    let wasm = dir
+        .join("target/wasm32-wasip2/release")
+        .join(format!("{}.wasm", id.replace('-', "_")));
+    let out = a.get(2).cloned().unwrap_or_else(|| {
+        dir.join(format!("{id}.sapp"))
+            .to_string_lossy()
+            .into_owned()
+    });
+    pack_files(
+        &wasm.to_string_lossy(),
+        &dir.join("manifest.json").to_string_lossy(),
+        &a[1],
+        &out,
+    )
 }

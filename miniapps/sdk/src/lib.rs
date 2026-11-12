@@ -1,7 +1,7 @@
 //! SDK Rust para mini-apps do Superapp.
 //!
 //! Um mini-app é uma função de evento: recebe um [`Event`] (abrir, clicar) e devolve a
-//! interface como uma árvore [`Node`] de um catálogo fixo (texto, botão, lista, pilha). O
+//! interface como uma árvore [`Node`] de um catálogo fixo (texto, título, botão, lista, campos de entrada, pilha e linha). O
 //! host valida a árvore e a desenha; o mini-app nunca produz HTML.
 //!
 //! ```ignore
@@ -11,7 +11,7 @@
 //! impl App for Contador {
 //!     fn handle(event: Event) -> Result<Node, String> {
 //!         let mut n = storage::get_u64("n").unwrap_or(0);
-//!         if matches!(&event, Event::Click { id } if id == "mais") {
+//!         if matches!(&event, Event::Click { id, .. } if id == "mais") {
 //!             n += 1;
 //!             storage::set_u64("n", n)?;
 //!         }
@@ -38,7 +38,7 @@ pub mod bindings {
 }
 
 pub use serde_json;
-pub use superapp_ui::{Event, Node};
+pub use superapp_ui::{Action, ActionItem, Event, Node};
 
 /// Contrato de um mini-app.
 pub trait App {
@@ -75,6 +75,67 @@ pub mod ui {
     }
     pub fn stack(children: Vec<Node>) -> Node {
         Node::Stack { children }
+    }
+    pub fn row(children: Vec<Node>) -> Node {
+        Node::Row { children }
+    }
+    pub fn heading(s: impl Into<String>) -> Node {
+        Node::Heading { text: s.into() }
+    }
+    pub fn divider() -> Node {
+        Node::Divider
+    }
+    /// Campo de texto. Na próxima `Event::Click`, o valor digitado vem em `values[id]`.
+    pub fn input(id: impl Into<String>, label: impl Into<String>, value: impl Into<String>) -> Node {
+        Node::Input {
+            id: id.into(),
+            label: label.into(),
+            value: value.into(),
+            placeholder: String::new(),
+        }
+    }
+    pub fn checkbox(id: impl Into<String>, label: impl Into<String>, checked: bool) -> Node {
+        Node::Checkbox {
+            id: id.into(),
+            label: label.into(),
+            checked,
+        }
+    }
+    pub fn select<S: Into<String>>(
+        id: impl Into<String>,
+        label: impl Into<String>,
+        options: impl IntoIterator<Item = S>,
+        selected: impl Into<String>,
+    ) -> Node {
+        Node::Select {
+            id: id.into(),
+            label: label.into(),
+            options: options.into_iter().map(Into::into).collect(),
+            selected: selected.into(),
+        }
+    }
+    pub fn progress(value: u8, label: impl Into<String>) -> Node {
+        Node::Progress {
+            value,
+            label: label.into(),
+        }
+    }
+    /// Lista com botões por item. `done: Some(_)` desenha o texto como concluído/aberto.
+    pub fn action_list(items: Vec<super::ActionItem>) -> Node {
+        Node::ActionList { items }
+    }
+    pub fn item(text: impl Into<String>, done: Option<bool>, actions: &[(&str, &str)]) -> super::ActionItem {
+        super::ActionItem {
+            text: text.into(),
+            done,
+            actions: actions
+                .iter()
+                .map(|(id, label)| super::Action {
+                    id: (*id).into(),
+                    label: (*label).into(),
+                })
+                .collect(),
+        }
     }
 }
 

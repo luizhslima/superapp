@@ -16,6 +16,7 @@ pub fn guest(dir: PathBuf, file: &str) -> Vec<u8> {
             root().join("crates/wasm-host/tests/guests/attack"),
             root().join("miniapps/counter"),
             root().join("miniapps/clicker"),
+            root().join("miniapps/tarefas"),
         ] {
             let status = Command::new(std::env::var("CARGO").unwrap_or("cargo".into()))
                 .args(["build", "--release", "--target", "wasm32-wasip2"])
@@ -31,6 +32,10 @@ pub fn guest(dir: PathBuf, file: &str) -> Vec<u8> {
     });
     std::fs::read(dir.join("target/wasm32-wasip2/release").join(file))
         .expect("wasm do guest não encontrado")
+}
+
+pub fn tarefas_wasm() -> Vec<u8> {
+    guest(root().join("miniapps/tarefas"), "tarefas.wasm")
 }
 
 pub fn clicker_wasm() -> Vec<u8> {

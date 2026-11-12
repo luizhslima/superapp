@@ -341,6 +341,27 @@ impl Registry {
         Ok(())
     }
 
+    /// Gera o backup (JSON) dos dados do mini-app. Funciona também com o app suspenso.
+    pub fn export_data(&self, id: &str) -> Result<Vec<u8>, LifecycleError> {
+        let g = self.inner.lock().expect("registry");
+        let entry = g.apps.get(id).ok_or(LifecycleError::NotInstalled)?;
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+        crate::backup::export(&self.root.join("data"), id, &entry.version, now).map_err(io)
+    }
+
+    /// Restaura um backup, substituindo os dados atuais do mini-app (que precisa estar instalado).
+    /// O arquivo é validado por inteiro antes de qualquer escrita. Devolve o nº de entradas.
+    pub fn import_data(&self, id: &str, bytes: &[u8]) -> Result<usize, LifecycleError> {
+        let g = self.inner.lock().expect("registry");
+        if !g.apps.contains_key(id) {
+            return Err(LifecycleError::NotInstalled);
+        }
+        crate::backup::import(&self.root.join("data"), id, bytes).map_err(io)
+    }
+
     fn loaded(&self, id: &str) -> Result<(Arc<MiniApp>, Limits), LifecycleError> {
         let mut g = self.inner.lock().expect("registry");
         let entry = g.apps.get(id).ok_or(LifecycleError::NotInstalled)?.clone();

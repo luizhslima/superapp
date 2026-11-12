@@ -18,6 +18,9 @@ superapp-wasm-host = { path = "../crates/wasm-host" }
 serde = { version = "1", features = ["derive"] }
 tauri = { version = "2", features = ["isolation"] }
 tauri-plugin-updater = "2"
+# Diálogos nativos (salvar/abrir backup, escolher .sapp). Só o Rust os usa: nenhuma capability
+# de janela os libera, então a UI não chama o plugin direto (o caminho é o Router).
+tauri-plugin-dialog = "2"
 # Rede só para o catálogo/baixa de mini-apps (store.rs). Mesmo TLS do updater: rustls + ring.
 reqwest = { version = "0.13", default-features = false, features = ["rustls-no-provider"] }
 rustls = { version = "0.23", default-features = false, features = ["ring"] }

@@ -1,0 +1,7 @@
+{
+  "schema": 1,
+  "id": "tarefas",
+  "name": "Tarefas",
+  "version": "0.1.0",
+  "permissions": ["storage"]
+}

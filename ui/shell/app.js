@@ -123,6 +123,20 @@ async function appsTest() {
   await ev({ type: "click", id: "inc" });
   t.click = await ev({ type: "click", id: "inc" });
   t.bad_event = await ev({ type: "click", id: "../x" });
+  // Valores de campos vão junto do clique; chave inválida é recusada antes de chegar ao app.
+  t.click_values = await ev({ type: "click", id: "nada", values: { campo: "texto\ncom linha" } });
+  t.bad_values = await ev({ type: "click", id: "inc", values: { "A b": "x" } });
+  t.bad_value_text = await ev({ type: "click", id: "inc", values: { campo: "a\u0000b" } });
+  t.unknown_event_field = await window.host("apps.dispatch", {
+    id: "clicker",
+    event: { type: "click", id: "inc", values: {}, extra: 1 },
+  });
+  // Chaves confiáveis: lista funciona; entrada ruim ou inexistente é recusada.
+  t.trust_list = await window.host("trust.list");
+  t.trust_bad = await window.host("trust.add", { key: "zz" });
+  t.trust_missing = await window.host("trust.remove", { key: "ab".repeat(32) });
+  // Backup de app inexistente falha antes de abrir qualquer diálogo.
+  t.export_missing = await window.host("data.export", { id: "nao-existe" });
   t.suspend = await window.host("apps.set_enabled", { id: "clicker", enabled: false });
   t.suspended_run = await ev({ type: "init" });
   await window.host("apps.set_enabled", { id: "clicker", enabled: true });

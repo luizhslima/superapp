@@ -27,6 +27,7 @@ struct Pending {
 pub struct AppsState {
     registry: Registry,
     trust: TrustStore,
+    data_dir: PathBuf,
     pending: Mutex<Vec<Pending>>,
 }
 
@@ -38,10 +39,12 @@ pub fn open(data_dir: PathBuf, audit: Arc<dyn AuditSink>) -> Result<Arc<AppsStat
         Ok(t) => TrustStore::from_hex_lines(&t)?,
         Err(_) => TrustStore::default(),
     };
-    let registry = Registry::open(data_dir, trust.clone(), audit).map_err(|e| e.to_string())?;
+    let registry =
+        Registry::open(data_dir.clone(), trust.clone(), audit).map_err(|e| e.to_string())?;
     Ok(Arc::new(AppsState {
         registry,
         trust,
+        data_dir,
         pending: Mutex::new(Vec::new()),
     }))
 }
@@ -50,6 +53,15 @@ impl AppsState {
     /// Chaves de autores confiáveis (a mesma lista vale para pacotes e para o catálogo).
     pub fn trust(&self) -> &TrustStore {
         &self.trust
+    }
+
+    /// Raiz de dados do app (onde ficam `trusted-keys.txt`, `apps/` e `data/`).
+    pub fn data_dir(&self) -> &Path {
+        &self.data_dir
+    }
+
+    pub fn registry(&self) -> &Registry {
+        &self.registry
     }
 
     /// Resumo para o relatório de diagnóstico: só id, versão e estado (sem dados nem caminhos).

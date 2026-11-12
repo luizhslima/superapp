@@ -1,5 +1,6 @@
-// Tela de mini-apps: lista, consentimento de permissões e renderização da UI declarativa
-// (ADR-009). Nada vindo de mini-app vira HTML: tudo entra por textContent.
+// Telas do shell: abas, lista de mini-apps, consentimento de permissões, loja, chaves confiáveis
+// e renderização da UI declarativa (ADR-009). Nada vindo de mini-app vira HTML: tudo entra por
+// textContent/value, e não há estilo em linha (a CSP não permite).
 (() => {
   const PERMS = {
     log: "Registrar mensagens de diagnóstico",
@@ -16,6 +17,13 @@
     return e;
   }
 
+  function button(label, onClick, cls) {
+    const b = el("button", label, cls);
+    b.type = "button";
+    b.addEventListener("click", onClick);
+    return b;
+  }
+
   function status(message, isError) {
     const s = $("status");
     s.textContent = message || "";
@@ -24,51 +32,238 @@
 
   const errText = (r) => (r.error && r.error.message) || "erro desconhecido";
 
+  // ---- Abas -------------------------------------------------------------------------------
+  function showTab(name) {
+    for (const t of document.querySelectorAll("#tabs [data-tab]")) {
+      t.setAttribute("aria-selected", String(t.dataset.tab === name));
+    }
+    for (const p of document.querySelectorAll("[data-panel]")) {
+      p.hidden = p.dataset.panel !== name;
+    }
+  }
+
   // ---- UI declarativa -------------------------------------------------------------------
+  // Campos da tela atual: id -> função que lê o valor. Vão junto de cada clique (formulário).
+  let fields = new Map();
+
+  function collectValues() {
+    const v = {};
+    for (const [id, get] of fields) v[id] = get();
+    return v;
+  }
+
+  function labelled(text, control, cls) {
+    const l = el("label", undefined, cls || "field");
+    l.append(el("span", text), control);
+    return l;
+  }
+
+  // Enter num campo aciona o botão da mesma linha ou, na falta, o primeiro botão da tela.
+  function submitFrom(input) {
+    const row = input.closest(".row");
+    const b = (row && row.querySelector("button")) || $("view").querySelector("button");
+    if (b) b.click();
+  }
+
   function render(node, parent, appId) {
     switch (node.type) {
       case "text":
-        parent.append(el("p", node.text));
+        parent.append(el("p", node.text, "text"));
         break;
-      case "button": {
-        const b = el("button", node.label);
-        b.type = "button";
-        b.addEventListener("click", () => dispatch(appId, { type: "click", id: node.id }));
-        parent.append(b);
+      case "heading":
+        parent.append(el("h3", node.text));
         break;
-      }
+      case "divider":
+        parent.append(el("hr"));
+        break;
+      case "button":
+        parent.append(
+          button(node.label, () => {
+            const event = { type: "click", id: node.id };
+            if (fields.size > 0) event.values = collectValues();
+            dispatch(appId, event);
+          }),
+        );
+        break;
       case "list": {
         const ul = el("ul");
         for (const item of node.items) ul.append(el("li", item));
         parent.append(ul);
         break;
       }
-      case "stack": {
-        const d = el("div", undefined, "stack");
+      case "action_list": {
+        const ul = el("ul", undefined, "actions");
+        for (const item of node.items) {
+          const li = el("li");
+          if (item.done !== null && item.done !== undefined) {
+            li.append(el("span", item.done ? "☑" : "☐", "mark"));
+          }
+          li.append(el("span", item.text, item.done ? "item-text done" : "item-text"));
+          for (const a of item.actions || []) {
+            li.append(
+              button(a.label, () => {
+                const event = { type: "click", id: a.id };
+                if (fields.size > 0) event.values = collectValues();
+                dispatch(appId, event);
+              }),
+            );
+          }
+          ul.append(li);
+        }
+        parent.append(ul);
+        break;
+      }
+      case "stack":
+      case "row": {
+        const d = el("div", undefined, node.type);
         for (const c of node.children) render(c, d, appId);
         parent.append(d);
+        break;
+      }
+      case "input": {
+        const i = document.createElement("input");
+        i.type = "text";
+        i.maxLength = 1000;
+        i.value = node.value || "";
+        i.placeholder = node.placeholder || "";
+        i.autocomplete = "off";
+        i.addEventListener("keydown", (e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            submitFrom(i);
+          }
+        });
+        fields.set(node.id, () => i.value);
+        parent.append(labelled(node.label, i));
+        break;
+      }
+      case "checkbox": {
+        const c = document.createElement("input");
+        c.type = "checkbox";
+        c.checked = !!node.checked;
+        fields.set(node.id, () => String(c.checked));
+        const l = el("label", undefined, "check");
+        l.append(c, el("span", node.label));
+        parent.append(l);
+        break;
+      }
+      case "select": {
+        const s = document.createElement("select");
+        for (const o of node.options) {
+          const opt = document.createElement("option");
+          opt.value = o;
+          opt.textContent = o;
+          s.append(opt);
+        }
+        s.value = node.selected || node.options[0];
+        fields.set(node.id, () => s.value);
+        parent.append(labelled(node.label, s));
+        break;
+      }
+      case "progress": {
+        const wrap = el("div", undefined, "progress");
+        const p = document.createElement("progress");
+        p.max = 100;
+        p.value = node.value;
+        if (node.label) p.setAttribute("aria-label", node.label);
+        wrap.append(p);
+        if (node.label) wrap.append(el("span", node.label));
+        parent.append(wrap);
         break;
       }
     }
   }
 
   let openApp = null;
+  let busy = false;
 
   async function dispatch(id, event) {
-    const r = await window.host("apps.dispatch", { id, event });
-    if (!r.ok) {
-      status(`${id}: ${errText(r)}`, true);
-      return;
-    }
-    status("");
-    openApp = id;
+    if (busy) return;
+    busy = true;
     const view = $("view");
-    view.replaceChildren();
-    render(r.value, view, id);
+    view.setAttribute("aria-busy", "true");
+    try {
+      const r = await window.host("apps.dispatch", { id, event });
+      if (!r.ok) {
+        status(`${id}: ${errText(r)}`, true);
+        return;
+      }
+      status("");
+      fields = new Map();
+      view.replaceChildren();
+      render(r.value, view, id);
+    } finally {
+      view.removeAttribute("aria-busy");
+      busy = false;
+    }
+  }
+
+  async function openAppView(a) {
+    openApp = a.id;
+    $("view-name").textContent = a.name;
+    $("list-section").hidden = true;
+    $("pending-section").hidden = true;
     $("view-section").hidden = false;
+    $("view").replaceChildren();
+    fields = new Map();
+    await dispatch(a.id, { type: "init" });
+  }
+
+  function closeView() {
+    openApp = null;
+    fields = new Map();
+    $("view-section").hidden = true;
+    $("view").replaceChildren();
+    $("list-section").hidden = false;
+    refreshPending();
   }
 
   // ---- Lista e ações ----------------------------------------------------------------------
+  // Botão de dois cliques: o primeiro só "arma" e mostra o que vai acontecer.
+  function armed(label, armedLabel, onConfirm, cls) {
+    const b = button(label, async () => {
+      if (!b.dataset.armed) {
+        b.dataset.armed = "1";
+        b.textContent = armedLabel;
+        return;
+      }
+      delete b.dataset.armed;
+      b.textContent = label;
+      await onConfirm();
+    }, cls);
+    b.addEventListener("blur", () => {
+      delete b.dataset.armed;
+      b.textContent = label;
+    });
+    return b;
+  }
+
+  async function exportData(a) {
+    status("Escolha onde salvar o backup...");
+    const r = await window.host("data.export", { id: a.id });
+    if (!r.ok) return status(errText(r), true);
+    status(r.value.saved ? `Backup de ${a.name} salvo.` : "Exportação cancelada.");
+  }
+
+  async function importData(a) {
+    status("Escolha o arquivo de backup...");
+    const r = await window.host("data.import", { id: a.id });
+    if (!r.ok) return status(errText(r), true);
+    status(
+      r.value.restored === null
+        ? "Restauração cancelada."
+        : `Dados de ${a.name} restaurados (${r.value.restored} itens).`,
+    );
+  }
+
+  async function uninstall(a, keepData) {
+    const res = await window.host("apps.uninstall", { id: a.id, keep_data: keepData });
+    if (!res.ok) status(errText(res), true);
+    else status(keepData ? `${a.name} removido; os dados foram mantidos.` : `${a.name} removido.`);
+    if (openApp === a.id) closeView();
+    refreshApps();
+  }
+
   async function refreshApps() {
     const r = await window.host("apps.list");
     const ul = $("apps");
@@ -82,46 +277,47 @@
         li.append(el("span", `com problema: ${a.problem}`, "badge problem"));
       } else {
         li.append(el("span", a.enabled ? "ativo" : "suspenso", "badge"));
-        const open = el("button", "Abrir");
-        open.type = "button";
+        const open = button("Abrir", () => openAppView(a), "primary");
         open.disabled = !a.enabled;
-        open.addEventListener("click", () => {
-          $("view-name").textContent = a.name;
-          dispatch(a.id, { type: "init" });
-        });
-        const toggle = el("button", a.enabled ? "Suspender" : "Retomar");
-        toggle.type = "button";
-        toggle.addEventListener("click", async () => {
-          const res = await window.host("apps.set_enabled", { id: a.id, enabled: !a.enabled });
-          if (!res.ok) status(errText(res), true);
-          if (a.enabled && openApp === a.id) closeView();
-          refreshApps();
-        });
-        li.append(open, toggle);
+        li.append(
+          open,
+          button(a.enabled ? "Suspender" : "Retomar", async () => {
+            const res = await window.host("apps.set_enabled", { id: a.id, enabled: !a.enabled });
+            if (!res.ok) status(errText(res), true);
+            if (a.enabled && openApp === a.id) closeView();
+            refreshApps();
+          }),
+        );
       }
-      const rm = el("button", "Remover", "danger");
-      rm.type = "button";
-      rm.addEventListener("click", async () => {
-        // Confirmação em dois cliques (sem depender de diálogo nativo do WebView).
-        if (!rm.dataset.armed) {
-          rm.dataset.armed = "1";
-          rm.textContent = "Confirmar remoção (apaga os dados)";
-          return;
-        }
-        const res = await window.host("apps.uninstall", { id: a.id, keep_data: false });
-        if (!res.ok) status(errText(res), true);
-        if (openApp === a.id) closeView();
-        refreshApps();
-      });
-      li.append(rm);
+      const more = el("div", undefined, "app-actions");
+      if (!a.problem) {
+        more.append(
+          button("Exportar dados", () => exportData(a)),
+          armed(
+            "Restaurar dados",
+            "Confirmar: substitui os dados atuais",
+            () => importData(a),
+          ),
+        );
+      }
+      // Remover: primeiro clique pergunta o que fazer com os dados.
+      const rm = button("Remover", () => {
+        rm.hidden = true;
+        const box = el("span", undefined, "confirm");
+        box.append(
+          button("Remover e apagar os dados", () => uninstall(a, false), "danger"),
+          button("Remover e manter os dados", () => uninstall(a, true)),
+          button("Cancelar", () => {
+            box.remove();
+            rm.hidden = false;
+          }),
+        );
+        more.append(box);
+      }, "danger");
+      more.append(rm);
+      li.append(more);
       ul.append(li);
     }
-  }
-
-  function closeView() {
-    openApp = null;
-    $("view-section").hidden = true;
-    $("view").replaceChildren();
   }
 
   // ---- Consentimento ----------------------------------------------------------------------
@@ -130,7 +326,7 @@
     const box = $("pending");
     box.replaceChildren();
     const list = r.ok ? r.value : [];
-    $("pending-section").hidden = list.length === 0;
+    $("pending-section").hidden = list.length === 0 || openApp !== null;
     for (const { token, preview: p } of list) {
       const card = el("div", undefined, "consent");
       card.append(
@@ -157,18 +353,14 @@
       }
       card.append(ul);
       const actions = el("div", undefined, "actions");
-      const ok = el("button", p.is_update ? "Atualizar" : "Instalar", "primary");
-      ok.type = "button";
-      ok.addEventListener("click", async () => {
+      const ok = button(p.is_update ? "Atualizar" : "Instalar", async () => {
         const approved = boxes.filter(([, cb]) => cb.checked).map(([perm]) => perm);
         const res = await window.host("apps.install", { token, approved });
         status(res.ok ? `${res.value.name} instalado.` : errText(res), !res.ok);
         refreshPending();
         refreshApps();
-      });
-      const no = el("button", "Cancelar");
-      no.type = "button";
-      no.addEventListener("click", async () => {
+      }, "primary");
+      const no = button("Cancelar", async () => {
         await window.host("apps.discard", { token });
         refreshPending();
       });
@@ -178,8 +370,136 @@
     }
   }
 
+  // ---- Loja -------------------------------------------------------------------------------
+  const DAY = 86400;
+
+  function showCatalogValidity(expiresAt) {
+    const p = $("store-validity");
+    const days = Math.floor((expiresAt - Date.now() / 1000) / DAY);
+    const date = new Date(expiresAt * 1000).toLocaleDateString("pt-BR");
+    const soon = days <= 14;
+    p.textContent = soon
+      ? `Atenção: o catálogo vence em ${date} (faltam ${Math.max(days, 0)} dias). Gere e publique um novo.`
+      : `Catálogo válido até ${date} (faltam ${days} dias).`;
+    p.className = soon ? "notice" : "hint";
+    p.hidden = false;
+  }
+
+  async function loadCatalog() {
+    status("Carregando catálogo...");
+    const r = await window.host("store.catalog");
+    const ul = $("store-list");
+    ul.replaceChildren();
+    $("store-validity").hidden = true;
+    if (!r.ok) return status(errText(r), true);
+    status("");
+    showCatalogValidity(r.value.expires_at);
+    if (r.value.entries.length === 0) ul.append(el("li", "Catálogo vazio."));
+    for (const e of r.value.entries) {
+      const li = el("li");
+      li.append(el("span", `${e.name} ${e.version}`, "app-name"));
+      const b = button("Baixar", async () => {
+        b.disabled = true;
+        status(`Baixando ${e.name}...`);
+        const d = await window.host("store.download", { id: e.id });
+        b.disabled = false;
+        if (!d.ok) return status(errText(d), true);
+        status(`${e.name} baixado e verificado: revise as permissões abaixo.`);
+        showTab("apps");
+        refreshPending();
+      });
+      li.append(b);
+      ul.append(li);
+    }
+  }
+
+  // ---- Autores confiáveis -----------------------------------------------------------------
+  const short = (k) => `${k.slice(0, 8)}…${k.slice(-8)}`;
+
+  async function refreshTrust() {
+    const r = await window.host("trust.list");
+    const ul = $("trust-list");
+    ul.replaceChildren();
+    if (!r.ok) return status(errText(r), true);
+    $("trust-pending").hidden = !r.value.pending_restart;
+    if (r.value.keys.length === 0) {
+      ul.append(el("li", "Nenhuma chave: nada pode ser instalado.", "hint"));
+    }
+    for (const k of r.value.keys) {
+      const li = el("li");
+      const name = el("span", short(k.key), "app-name key");
+      name.title = k.key;
+      li.append(name);
+      let state = "ativa";
+      if (k.in_file && !k.active) state = "passa a valer ao reiniciar";
+      if (!k.in_file && k.active) state = "removida: deixa de valer ao reiniciar";
+      li.append(el("span", state, "badge"));
+      if (k.in_file) {
+        li.append(
+          armed(
+            "Remover",
+            "Confirmar: os apps desta chave deixam de abrir",
+            async () => {
+              const res = await window.host("trust.remove", { key: k.key });
+              if (!res.ok) status(errText(res), true);
+              refreshTrust();
+            },
+            "danger",
+          ),
+        );
+      }
+      ul.append(li);
+    }
+  }
+
+  const HEX64 = /^[0-9a-fA-F]{64}$/;
+
+  function initTrustUi() {
+    const input = $("trust-new");
+    const add = $("trust-add");
+    const disarm = () => {
+      delete add.dataset.armed;
+      add.textContent = "Adicionar";
+    };
+    input.addEventListener("input", disarm);
+    add.addEventListener("click", async () => {
+      const key = input.value.trim();
+      if (!HEX64.test(key)) return status("Chave inválida: são 64 caracteres hexadecimais.", true);
+      if (!add.dataset.armed) {
+        add.dataset.armed = "1";
+        add.textContent = "Confirmar: confiar nesta chave";
+        return;
+      }
+      disarm();
+      const r = await window.host("trust.add", { key });
+      if (!r.ok) return status(errText(r), true);
+      input.value = "";
+      status("Chave adicionada. Reinicie o Superapp para ela valer.");
+      refreshTrust();
+    });
+    $("trust-restart").addEventListener("click", async () => {
+      await window.host("app.restart");
+    });
+  }
+
+  // ---- Inicialização ----------------------------------------------------------------------
   window.initAppsUi = async function () {
+    for (const t of document.querySelectorAll("#tabs [data-tab]")) {
+      t.addEventListener("click", () => {
+        showTab(t.dataset.tab);
+        if (t.dataset.tab === "settings") refreshTrust();
+      });
+    }
     $("view-close").addEventListener("click", closeView);
+    $("apps-pick").addEventListener("click", async () => {
+      const r = await window.host("apps.pick");
+      if (!r.ok) return status(errText(r), true);
+      if (r.value.picked) {
+        status("");
+        refreshPending();
+      }
+    });
+    initTrustUi();
     // Atualização do host: a UI só pede "verificar" e "instalar"; endereço e chave são do Rust.
     $("update-check").addEventListener("click", async () => {
       status("Verificando atualizações...");
@@ -201,32 +521,7 @@
       if (!r.ok) status(errText(r), true);
       $("update-install").disabled = false;
     });
-    $("store-load").addEventListener("click", async () => {
-      status("Carregando catálogo...");
-      const r = await window.host("store.catalog");
-      const ul = $("store-list");
-      ul.replaceChildren();
-      if (!r.ok) return status(errText(r), true);
-      status("");
-      if (r.value.entries.length === 0) ul.append(el("li", "Catálogo vazio."));
-      for (const e of r.value.entries) {
-        const li = el("li");
-        li.append(el("span", `${e.name} ${e.version}`, "app-name"));
-        const b = el("button", "Baixar");
-        b.type = "button";
-        b.addEventListener("click", async () => {
-          b.disabled = true;
-          status(`Baixando ${e.name}...`);
-          const d = await window.host("store.download", { id: e.id });
-          b.disabled = false;
-          if (!d.ok) return status(errText(d), true);
-          status(`${e.name} baixado e verificado: revise as permissões abaixo.`);
-          refreshPending();
-        });
-        li.append(b);
-        ul.append(li);
-      }
-    });
+    $("store-load").addEventListener("click", loadCatalog);
     $("diag-run").addEventListener("click", async () => {
       const r = await window.host("diag.report");
       if (!r.ok) return status(errText(r), true);
@@ -238,6 +533,7 @@
     try {
       await window.__TAURI__.event.listen("apps://staged", (e) => {
         status(e.payload ? `Pacote recusado: ${e.payload}` : "", !!e.payload);
+        if (!e.payload && openApp === null) showTab("apps");
         refreshPending();
       });
     } catch (_) {

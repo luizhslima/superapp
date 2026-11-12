@@ -119,6 +119,11 @@ impl TrustStore {
     pub fn is_trusted(&self, key: &[u8; 32]) -> bool {
         self.keys.contains(key)
     }
+
+    /// As chaves em uso (para mostrar ao usuário).
+    pub fn keys(&self) -> &[[u8; 32]] {
+        &self.keys
+    }
 }
 
 /// Pacote que passou por toda a verificação.

@@ -14,6 +14,19 @@ que gere componentes para `wasm32-wasip2` serve.
 - Você só enxerga o que o manifesto pede **e** o usuário aprovou. Sem rede, sem arquivos, sem
   relógio, a menos que a permissão exista e seja concedida.
 
+## Começando rápido: `new-app`
+
+```bash
+cargo xtask new-app minhas-notas "Minhas notas"      # cria miniapps/minhas-notas a partir de `tarefas`
+cargo xtask build-app minhas-notas G:/dev/secrets/superapp-publisher.key   # compila e assina
+```
+
+O resultado é `miniapps/minhas-notas/minhas-notas.sapp`: arraste para o Superapp ou use
+**Instalar de um arquivo .sapp** na aba Mini-apps. O gabarito é uma cópia de
+[`miniapps/tarefas`](../../miniapps/tarefas), que usa campo de texto, linha, lista com ações e
+progresso e é testado de ponta a ponta. Só funciona se a chave que assinou estiver em
+**Configurações → Autores confiáveis** (reinicie depois de adicionar).
+
 ## Começando (Rust)
 
 ```toml
@@ -38,7 +51,7 @@ struct Contador;
 impl App for Contador {
     fn handle(event: Event) -> Result<Node, String> {
         let mut n = storage::get_u64("n").unwrap_or(0);
-        if matches!(&event, Event::Click { id } if id == "mais") {
+        if matches!(&event, Event::Click { id, .. } if id == "mais") {
             n += 1;
             storage::set_u64("n", n)?;
         }
@@ -85,17 +98,40 @@ Três pontos que só aparecem ao sair do Rust:
 | Entrada (`Event`) | Quando |
 |---|---|
 | `Init` | o usuário abre o mini-app |
-| `Click { id }` | o usuário clica num botão com esse `id` |
+| `Click { id, values }` | o usuário aciona um botão (ou a ação de um item de lista) com esse `id`; `values` traz o valor atual de **todos os campos da tela** |
+
+Os campos funcionam como um **formulário**: o que o usuário digita fica na tela e só viaja ao
+mini-app quando ele aciona um botão. `values` mapeia o `id` do campo ao valor em texto (caixa:
+`"true"`/`"false"`; seleção: a opção escolhida). Em Rust: `values.get("nova")`. Como cada
+evento recria a tela, devolva no `value`/`checked`/`selected` o que quiser manter preenchido; o
+que não for devolvido volta ao padrão. Enter num campo de texto aciona o botão da mesma linha.
 
 | Componente (`ui::`) | Limites |
 |---|---|
 | `text(s)` | até 500 caracteres, sem caracteres de controle (exceto `\n`) |
+| `heading(s)` | título de 1–120 caracteres, uma linha |
+| `divider()` | linha separadora |
 | `button(id, label)` | `id` em `[a-z0-9_-]{1,32}`; rótulo 1–80 caracteres |
 | `list(itens)` | até 100 itens de até 200 caracteres |
-| `stack(filhos)` | profundidade até 8; no máximo 200 nós; saída total até 64 KiB |
+| `action_list(itens)` / `item(texto, done, &[(id, rótulo)])` | até 100 itens; até 4 ações por item (cada ação é um botão com `id`); `done: Some(_)` mostra ☑/☐ e risca o concluído; item e ações contam no orçamento de nós |
+| `stack(filhos)` / `row(filhos)` | coluna / linha; profundidade até 8; no máximo 200 nós; saída total até 64 KiB |
+| `input(id, rótulo, valor)` | texto de uma linha; valor até 1000 caracteres; rótulo até 80 |
+| `checkbox(id, rótulo, marcada)` | rótulo 1–80 caracteres |
+| `select(id, rótulo, opções, escolhida)` | 1–50 opções de até 80 caracteres; `escolhida` precisa estar nas opções (vazio = a primeira) |
+| `progress(0..=100, rótulo)` | barra de progresso com rótulo opcional |
 
-Saída fora do catálogo ou dos limites vira o erro "UI inválida" para o usuário e **não** é
-desenhada. Não há como injetar HTML, estilo ou script.
+Campos (`input`, `checkbox`, `select`) precisam de `id` **único na tela**, no máximo 32 por
+tela. Saída fora do catálogo ou dos limites vira o erro "UI inválida" para o usuário e **não** é
+desenhada. Não há como injetar HTML, estilo ou script. (O formato antigo do clique, sem
+`values`, continua valendo.)
+
+## Seus dados: backup
+
+Na aba Mini-apps, cada app tem **Exportar dados** (salva um JSON legível onde você escolher) e
+**Restaurar dados** (escolhe um backup e **substitui** os dados atuais do app). O backup é
+validado antes de tocar em qualquer coisa: precisa ser do mesmo app, respeitar os limites de
+chave/valor e a quota de 4 MiB, sem chaves repetidas; se algo estiver errado, nada muda.
+Remover o app pergunta se apaga ou mantém os dados.
 
 ## Permissões
 
@@ -146,12 +182,14 @@ cargo xtask verify app.sapp trusted-keys.txt      # confere assinatura, hash e m
 ```
 
 - **Nunca versione `*.key`** (o `.gitignore` já as ignora). Quem tem a chave publica em seu nome.
-- O host só instala pacotes de autores cuja **chave pública** esteja em
-  `<dados do app>/trusted-keys.txt` (uma chave hex por linha, `#` comenta).
+- O host só instala pacotes de autores cuja **chave pública** esteja na lista de **autores
+  confiáveis** (Configurações; fica em `<dados do app>/trusted-keys.txt`, uma chave hex por
+  linha, `#` comenta). Adicionar ou remover vale depois de reiniciar; remover uma chave faz os
+  apps dela pararem de abrir.
 - O `pack` **recusa** código com segredos conhecidos embutidos (chave privada PEM, tokens AWS,
   GitHub, Slack, Google, `sk-...`). Tire o segredo do código.
-- O arquivo `.sapp` é arrastado para a janela do Superapp, que mostra o **consentimento** antes
-  de instalar. Detalhes do formato: [ADR-010](../plan/04-adrs/ADR-010-package-format-signing.md).
+- O arquivo `.sapp` é arrastado para a janela do Superapp (ou escolhido em **Instalar de um
+  arquivo**), que mostra o **consentimento** antes de instalar. Detalhes do formato: [ADR-010](../plan/04-adrs/ADR-010-package-format-signing.md).
 
 ## O que o host garante (e o que não)
 
@@ -159,5 +197,5 @@ Garante: fuel obrigatório; memória e tempo limitados; sem FS/rede; permissões
 dados isolados por id; pacote reverificado a cada carga; UI validada; tudo auditado como
 `app:<id>`. Detalhes e testes: [modelo de segurança](../plan/06-security-model.md).
 
-Não garante (ainda): revogação por lista central, atualização automática, nem isolamento de
-canais laterais de tempo (o relógio do WASI está disponível ao guest).
+Não garante (ainda): revogação por lista central (a revogação é por chave, na sua máquina), nem
+isolamento de canais laterais de tempo (o relógio do WASI está disponível ao guest).

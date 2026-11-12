@@ -10,44 +10,80 @@
     <h1>Superapp</h1>
     <pre id="out">carregando...</pre>
   </header>
+
+  <nav id="tabs" role="tablist" aria-label="Seções">
+    <button type="button" role="tab" id="tab-apps" data-tab="apps" aria-selected="true" aria-controls="panel-apps">Mini-apps</button>
+    <button type="button" role="tab" id="tab-store" data-tab="store" aria-selected="false" aria-controls="panel-store">Loja</button>
+    <button type="button" role="tab" id="tab-settings" data-tab="settings" aria-selected="false" aria-controls="panel-settings">Configurações</button>
+  </nav>
+
   <p id="status" role="status" aria-live="polite"></p>
 
-  <section aria-labelledby="h-update">
-    <h2 id="h-update">Atualização do Superapp</h2>
-    <button id="update-check" type="button">Verificar atualizações</button>
-    <button id="update-install" type="button" hidden>Instalar e reiniciar</button>
-  </section>
+  <!-- Mini-apps: lista, consentimento e o app aberto (que ocupa o lugar da lista) -->
+  <main id="panel-apps" role="tabpanel" aria-labelledby="tab-apps" data-panel="apps">
+    <section aria-labelledby="h-pending" id="pending-section" hidden>
+      <h2 id="h-pending">Aguardando seu consentimento</h2>
+      <div id="pending"></div>
+    </section>
 
-  <section aria-labelledby="h-store">
-    <h2 id="h-store">Catálogo de mini-apps</h2>
-    <p class="hint">Lista assinada, publicada em endereço fixo. Baixar só prepara o pacote: você ainda revisa as permissões antes de instalar.</p>
-    <button id="store-load" type="button">Carregar catálogo</button>
-    <ul id="store-list"></ul>
-  </section>
+    <section id="list-section" aria-labelledby="h-apps">
+      <h2 id="h-apps">Mini-apps instalados</h2>
+      <ul id="apps"></ul>
+      <p id="apps-empty" class="hint">Nenhum mini-app instalado. Arraste um arquivo <code>.sapp</code> para esta janela, escolha um arquivo ou use a aba Loja.</p>
+      <button id="apps-pick" type="button">Instalar de um arquivo .sapp...</button>
+    </section>
 
-  <section aria-labelledby="h-diag">
-    <h2 id="h-diag">Relatório de diagnóstico</h2>
-    <p class="hint">Gerado só quando você pede, fica nesta tela e nada é enviado. Sem caminhos, nomes de usuário nem dados dos mini-apps.</p>
-    <button id="diag-run" type="button">Gerar relatório</button>
-    <textarea id="diag-out" readonly rows="10" hidden aria-label="Relatório de diagnóstico"></textarea>
-  </section>
+    <section id="view-section" aria-labelledby="h-view" hidden>
+      <div class="view-bar">
+        <button id="view-close" type="button">&larr; Voltar</button>
+        <h2 id="h-view"><span id="view-name"></span></h2>
+      </div>
+      <div id="view"></div>
+    </section>
+  </main>
 
-  <section aria-labelledby="h-pending" id="pending-section" hidden>
-    <h2 id="h-pending">Aguardando seu consentimento</h2>
-    <div id="pending"></div>
-  </section>
+  <!-- Loja: catálogo assinado -->
+  <main id="panel-store" role="tabpanel" aria-labelledby="tab-store" data-panel="store" hidden>
+    <section aria-labelledby="h-store">
+      <h2 id="h-store">Catálogo de mini-apps</h2>
+      <p class="hint">Lista assinada, publicada em endereço fixo. Baixar só prepara o pacote: você ainda revisa as permissões antes de instalar.</p>
+      <button id="store-load" type="button">Carregar catálogo</button>
+      <p id="store-validity" class="hint" hidden></p>
+      <ul id="store-list"></ul>
+    </section>
+  </main>
 
-  <section aria-labelledby="h-apps">
-    <h2 id="h-apps">Mini-apps instalados</h2>
-    <ul id="apps"></ul>
-    <p id="apps-empty" class="hint">Nenhum mini-app instalado. Arraste um arquivo <code>.sapp</code> para esta janela.</p>
-  </section>
+  <!-- Configurações: atualização, chaves confiáveis, diagnóstico -->
+  <main id="panel-settings" role="tabpanel" aria-labelledby="tab-settings" data-panel="settings" hidden>
+    <section aria-labelledby="h-update">
+      <h2 id="h-update">Atualização do Superapp</h2>
+      <button id="update-check" type="button">Verificar atualizações</button>
+      <button id="update-install" type="button" hidden>Instalar e reiniciar</button>
+    </section>
 
-  <section aria-labelledby="h-view" id="view-section" hidden>
-    <h2 id="h-view">Mini-app aberto: <span id="view-name"></span></h2>
-    <div id="view"></div>
-    <button id="view-close" type="button">Fechar</button>
-  </section>
+    <section aria-labelledby="h-trust">
+      <h2 id="h-trust">Autores confiáveis</h2>
+      <p class="hint">O Superapp só instala mini-apps e catálogos assinados por uma destas chaves. Mudanças valem depois de reiniciar. Remover uma chave faz os apps dela pararem de abrir.</p>
+      <p id="trust-pending" class="notice" hidden>
+        Há mudanças aguardando reinício.
+        <button id="trust-restart" type="button" class="primary">Reiniciar agora</button>
+      </p>
+      <ul id="trust-list"></ul>
+      <div class="field-row">
+        <label class="field grow"><span>Adicionar chave pública (64 caracteres hexadecimais)</span>
+          <input id="trust-new" type="text" maxlength="64" autocomplete="off" spellcheck="false">
+        </label>
+        <button id="trust-add" type="button">Adicionar</button>
+      </div>
+    </section>
+
+    <section aria-labelledby="h-diag">
+      <h2 id="h-diag">Relatório de diagnóstico</h2>
+      <p class="hint">Gerado só quando você pede, fica nesta tela e nada é enviado. Sem caminhos, nomes de usuário nem dados dos mini-apps.</p>
+      <button id="diag-run" type="button">Gerar relatório</button>
+      <textarea id="diag-out" readonly rows="10" hidden aria-label="Relatório de diagnóstico"></textarea>
+    </section>
+  </main>
 
   <script src="ipc.js"></script>
   <script src="apps.js"></script>

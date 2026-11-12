@@ -1,7 +1,9 @@
 //! Host Tauri: encaminha todo comando da UI para o `Router` do core.
 mod apps;
+mod data;
 mod diag;
 mod store;
+mod trust;
 mod updates;
 
 use serde_json::{json, Value};
@@ -160,6 +162,8 @@ fn build_router(
         .grant("main", updates::CAP)
         .grant("main", diag::CAP)
         .grant("main", store::CAP)
+        .grant("main", trust::CAP)
+        .grant("main", data::CAP)
         .grant("mfe-a", "app:read")
         .grant("mfe-b", "app:read");
     if bench_out.is_some() {
@@ -234,6 +238,8 @@ fn build_router(
         Ok(st) => {
             apps::register(&mut r, st.clone());
             store::register(&mut r, st.clone());
+            trust::register(&mut r, st.clone());
+            data::register(&mut r, st.clone(), app.clone());
             app.manage(st);
         }
         Err(e) => tracing::error!(error = %e, "gerenciador de mini-apps desativado"),
@@ -276,6 +282,7 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_dialog::init())
         .register_uri_scheme_protocol("sapp", blob_protocol)
         .invoke_handler(tauri::generate_handler![ipc, ipc_bytes])
         // Arrastar um .sapp para a janela principal: o Rust lê o arquivo (a UI nunca informa

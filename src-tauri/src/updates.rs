@@ -40,6 +40,14 @@ pub fn register(r: &mut Router, app: tauri::AppHandle) {
         })
     });
 
+    // Reinicia o app (usado após mudar as chaves confiáveis). Não recebe argumento algum.
+    let h = app.clone();
+    r.register("app.restart", CAP, move |_c, _a: Value| {
+        h.restart();
+        #[allow(unreachable_code)]
+        Ok::<Value, IpcError>(Value::Null)
+    });
+
     // Baixa, confere a assinatura, instala e reinicia. Só age sobre o que o `check` achou
     // agora: não aceita versão nem URL da UI.
     r.register("app.update.install", CAP, move |_c, _a: Value| {

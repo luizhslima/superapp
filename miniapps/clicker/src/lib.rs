@@ -7,7 +7,7 @@ struct Clicker;
 impl App for Clicker {
     fn handle(event: Event) -> Result<Node, String> {
         let mut n = storage::get_u64("clicks").unwrap_or(0);
-        if matches!(&event, Event::Click { id } if id == "inc") {
+        if matches!(&event, Event::Click { id, .. } if id == "inc") {
             n += 1;
             storage::set_u64("clicks", n)?;
         }

@@ -136,12 +136,12 @@ async fn js_miniapp_installs_runs_and_persists_through_the_same_host() {
         t0.elapsed()
     );
     assert_eq!(text(&first), "Cliques (JS): 0");
-    reg.dispatch("clicker-js", &Event::Click { id: "inc".into() })
+    reg.dispatch("clicker-js", &Event::click("inc"))
         .await
         .unwrap();
     let t1 = Instant::now();
     let ui = reg
-        .dispatch("clicker-js", &Event::Click { id: "inc".into() })
+        .dispatch("clicker-js", &Event::click("inc"))
         .await
         .unwrap();
     eprintln!(

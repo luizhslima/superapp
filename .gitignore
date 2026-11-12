@@ -17,3 +17,4 @@ target-iso/
 # Mini-apps compilados (artefatos locais)
 miniapps/**/*.wasm
 miniapps/**/.build/
+*.sapp

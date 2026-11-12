@@ -17,7 +17,17 @@
       const diag = await window.host("diag.report");
       const storeCat = await window.host("store.catalog");
       const storeDl = await window.host("store.download", { id: "clicker" });
-      bc.postMessage({ info, echo, bytes, blob, apps, appsRun, upd, updInstall, diag, storeCat, storeDl });
+      const trustList = await window.host("trust.list");
+      const trustAdd = await window.host("trust.add", { key: "ab".repeat(32) });
+      const trustRm = await window.host("trust.remove", { key: "ab".repeat(32) });
+      const dataExp = await window.host("data.export", { id: "clicker" });
+      const dataImp = await window.host("data.import", { id: "clicker" });
+      const appsPick = await window.host("apps.pick");
+      const restart = await window.host("app.restart");
+      bc.postMessage({
+        info, echo, bytes, blob, apps, appsRun, upd, updInstall, diag, storeCat, storeDl,
+        trustList, trustAdd, trustRm, dataExp, dataImp, appsPick, restart,
+      });
     })();
   </script>
 </body></html>
