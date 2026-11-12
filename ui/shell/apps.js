@@ -47,6 +47,10 @@
     for (const p of document.querySelectorAll("[data-panel]")) {
       p.hidden = p.dataset.panel !== name;
     }
+    // Loja e Configurações (abertas pelo menu) só aparecem como aba enquanto estão ativas.
+    for (const w of document.querySelectorAll("#tabs [data-section]")) {
+      w.hidden = w.dataset.section !== name;
+    }
   }
 
   function selectTab(name) {
@@ -55,7 +59,9 @@
   }
 
   function cycleTab(step) {
-    const order = [...document.querySelectorAll("#tabs [data-tab]")].map((t) => t.dataset.tab);
+    const order = [...document.querySelectorAll("#tabs [data-tab]")]
+      .filter((t) => !t.closest("[hidden]"))
+      .map((t) => t.dataset.tab);
     const i = order.indexOf(currentTab);
     selectTab(order[(i + step + order.length) % order.length]);
   }
@@ -518,6 +524,57 @@
     }
   }
 
+  // Hambúrguer: submenu com as seções e ações. Cada item tem um `data-action` que é um dos ids
+  // de handleMenu (os mesmos do menu nativo), então os dois menus fazem exatamente a mesma coisa.
+  function initHamburger() {
+    const btn = $("hamburger");
+    const menu = $("menu");
+    const items = () => [...menu.querySelectorAll("[role=menuitem]")];
+    const close = (refocus) => {
+      menu.hidden = true;
+      btn.setAttribute("aria-expanded", "false");
+      if (refocus) btn.focus();
+    };
+    const open = () => {
+      menu.hidden = false;
+      btn.setAttribute("aria-expanded", "true");
+      items()[0].focus();
+    };
+    btn.addEventListener("click", () => (menu.hidden ? open() : close(true)));
+    menu.addEventListener("click", (e) => {
+      const it = e.target.closest("[data-action]");
+      if (!it) return;
+      close(true);
+      handleMenu(it.dataset.action);
+    });
+    menu.addEventListener("keydown", (e) => {
+      const list = items();
+      const i = list.indexOf(document.activeElement);
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        list[(i + 1) % list.length].focus();
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        list[(i - 1 + list.length) % list.length].focus();
+      } else if (e.key === "Home") {
+        e.preventDefault();
+        list[0].focus();
+      } else if (e.key === "End") {
+        e.preventDefault();
+        list[list.length - 1].focus();
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        close(true);
+      } else if (e.key === "Tab") {
+        close(false);
+      }
+    });
+    // Clicar fora fecha.
+    document.addEventListener("click", (e) => {
+      if (!menu.hidden && !e.target.closest(".menu-wrap")) close(false);
+    });
+  }
+
   function handleMenu(action) {
     switch (action) {
       case "pick":
@@ -525,6 +582,7 @@
         break;
       case "close-tab":
         if (currentTab.startsWith("app:")) closeAppTab(currentTab.slice(4));
+        else if (currentTab !== "apps") selectTab("apps");
         break;
       case "tab-apps":
         selectTab("apps");
@@ -557,6 +615,10 @@
     for (const t of document.querySelectorAll("#tabs [data-tab]")) {
       t.addEventListener("click", () => selectTab(t.dataset.tab));
     }
+    for (const c of document.querySelectorAll("#tabs [data-close]")) {
+      c.addEventListener("click", () => selectTab("apps"));
+    }
+    initHamburger();
     $("apps-pick").addEventListener("click", pickFile);
     initTrustUi();
     // Atualização do host: a UI só pede "verificar" e "instalar"; endereço e chave são do Rust.

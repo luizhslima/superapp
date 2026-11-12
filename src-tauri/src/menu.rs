@@ -111,4 +111,22 @@ mod tests {
             );
         }
     }
+
+    /// O hambúrguer da tela usa os mesmos ids do menu nativo: nenhum item pode ficar órfão.
+    #[test]
+    fn hamburger_items_use_known_actions() {
+        let html = include_str!("../../ui/shell/index.html");
+        let used: Vec<&str> = html
+            .split("data-action=\"")
+            .skip(1)
+            .filter_map(|r| r.split('"').next())
+            .collect();
+        assert!(!used.is_empty(), "o hambúrguer não tem itens");
+        for id in used {
+            assert!(
+                ACTIONS.contains(&id),
+                "ação desconhecida no hambúrguer: {id}"
+            );
+        }
+    }
 }
