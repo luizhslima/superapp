@@ -2,6 +2,7 @@
 mod apps;
 mod data;
 mod diag;
+mod menu;
 mod store;
 mod trust;
 mod updates;
@@ -336,6 +337,10 @@ pub fn run() {
                         tracing::error!(error = %e, "dev: falha ao preparar o pacote");
                     }
                 }
+            }
+            // Barra de menu nativa (só emite eventos de ids fixos para a janela principal).
+            if let Err(e) = menu::install(app.handle()) {
+                tracing::error!(error = %e, "menu nativo desativado");
             }
             if smoke_out.is_some() {
                 // Janela sem nenhuma capability, só no modo smoke.

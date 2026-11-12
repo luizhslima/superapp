@@ -33,7 +33,14 @@
   const errText = (r) => (r.error && r.error.message) || "erro desconhecido";
 
   // ---- Abas -------------------------------------------------------------------------------
+  // Abas fixas ("apps", "store", "settings") e uma aba por mini-app aberto ("app:<id>"), cada
+  // uma com a sua própria tela e os seus próprios campos.
+  const MAX_APP_TABS = 8;
+  const appTabs = new Map(); // id do app -> { name, wrap, panel, view, fields, busy }
+  let currentTab = "apps";
+
   function showTab(name) {
+    currentTab = name;
     for (const t of document.querySelectorAll("#tabs [data-tab]")) {
       t.setAttribute("aria-selected", String(t.dataset.tab === name));
     }
@@ -42,14 +49,67 @@
     }
   }
 
-  // ---- UI declarativa -------------------------------------------------------------------
-  // Campos da tela atual: id -> função que lê o valor. Vão junto de cada clique (formulário).
-  let fields = new Map();
+  function selectTab(name) {
+    showTab(name);
+    if (name === "settings") refreshTrust();
+  }
 
-  function collectValues() {
+  function cycleTab(step) {
+    const order = [...document.querySelectorAll("#tabs [data-tab]")].map((t) => t.dataset.tab);
+    const i = order.indexOf(currentTab);
+    selectTab(order[(i + step + order.length) % order.length]);
+  }
+
+  function openAppTab(a) {
+    const key = `app:${a.id}`;
+    if (appTabs.has(a.id)) return selectTab(key);
+    if (appTabs.size >= MAX_APP_TABS) {
+      return status(`Limite de ${MAX_APP_TABS} abas de mini-apps: feche alguma.`, true);
+    }
+    const btn = button(a.name, () => selectTab(key));
+    btn.setAttribute("role", "tab");
+    btn.setAttribute("aria-selected", "false");
+    btn.dataset.tab = key;
+    const close = button("×", () => closeAppTab(a.id), "tab-close");
+    close.setAttribute("aria-label", `Fechar aba ${a.name}`);
+    const wrap = el("span", undefined, "tab-wrap");
+    wrap.append(btn, close);
+    $("tabs").append(wrap);
+
+    const panel = el("main");
+    panel.setAttribute("role", "tabpanel");
+    panel.dataset.panel = key;
+    panel.hidden = true;
+    const view = el("div", undefined, "view");
+    panel.append(el("h2", a.name), view);
+    $("panel-settings").after(panel);
+
+    appTabs.set(a.id, { name: a.name, wrap, panel, view, fields: new Map(), busy: false });
+    selectTab(key);
+    dispatch(a.id, { type: "init" });
+  }
+
+  function closeAppTab(id) {
+    const t = appTabs.get(id);
+    if (!t) return;
+    appTabs.delete(id);
+    t.wrap.remove();
+    t.panel.remove();
+    if (currentTab === `app:${id}`) selectTab("apps");
+  }
+
+  // ---- UI declarativa -------------------------------------------------------------------
+  // Os campos de cada aba (id -> função que lê o valor) vão junto de cada clique (formulário).
+  function collectValues(tab) {
     const v = {};
-    for (const [id, get] of fields) v[id] = get();
+    for (const [id, get] of tab.fields) v[id] = get();
     return v;
+  }
+
+  function clickEvent(id, tab) {
+    const event = { type: "click", id };
+    if (tab.fields.size > 0) event.values = collectValues(tab);
+    return event;
   }
 
   function labelled(text, control, cls) {
@@ -59,13 +119,13 @@
   }
 
   // Enter num campo aciona o botão da mesma linha ou, na falta, o primeiro botão da tela.
-  function submitFrom(input) {
+  function submitFrom(input, tab) {
     const row = input.closest(".row");
-    const b = (row && row.querySelector("button")) || $("view").querySelector("button");
+    const b = (row && row.querySelector("button")) || tab.view.querySelector("button");
     if (b) b.click();
   }
 
-  function render(node, parent, appId) {
+  function render(node, parent, appId, tab) {
     switch (node.type) {
       case "text":
         parent.append(el("p", node.text, "text"));
@@ -77,13 +137,7 @@
         parent.append(el("hr"));
         break;
       case "button":
-        parent.append(
-          button(node.label, () => {
-            const event = { type: "click", id: node.id };
-            if (fields.size > 0) event.values = collectValues();
-            dispatch(appId, event);
-          }),
-        );
+        parent.append(button(node.label, () => dispatch(appId, clickEvent(node.id, tab))));
         break;
       case "list": {
         const ul = el("ul");
@@ -100,13 +154,7 @@
           }
           li.append(el("span", item.text, item.done ? "item-text done" : "item-text"));
           for (const a of item.actions || []) {
-            li.append(
-              button(a.label, () => {
-                const event = { type: "click", id: a.id };
-                if (fields.size > 0) event.values = collectValues();
-                dispatch(appId, event);
-              }),
-            );
+            li.append(button(a.label, () => dispatch(appId, clickEvent(a.id, tab))));
           }
           ul.append(li);
         }
@@ -116,7 +164,7 @@
       case "stack":
       case "row": {
         const d = el("div", undefined, node.type);
-        for (const c of node.children) render(c, d, appId);
+        for (const c of node.children) render(c, d, appId, tab);
         parent.append(d);
         break;
       }
@@ -130,10 +178,10 @@
         i.addEventListener("keydown", (e) => {
           if (e.key === "Enter") {
             e.preventDefault();
-            submitFrom(i);
+            submitFrom(i, tab);
           }
         });
-        fields.set(node.id, () => i.value);
+        tab.fields.set(node.id, () => i.value);
         parent.append(labelled(node.label, i));
         break;
       }
@@ -141,7 +189,7 @@
         const c = document.createElement("input");
         c.type = "checkbox";
         c.checked = !!node.checked;
-        fields.set(node.id, () => String(c.checked));
+        tab.fields.set(node.id, () => String(c.checked));
         const l = el("label", undefined, "check");
         l.append(c, el("span", node.label));
         parent.append(l);
@@ -156,7 +204,7 @@
           s.append(opt);
         }
         s.value = node.selected || node.options[0];
-        fields.set(node.id, () => s.value);
+        tab.fields.set(node.id, () => s.value);
         parent.append(labelled(node.label, s));
         break;
       }
@@ -174,48 +222,26 @@
     }
   }
 
-  let openApp = null;
-  let busy = false;
-
   async function dispatch(id, event) {
-    if (busy) return;
-    busy = true;
-    const view = $("view");
-    view.setAttribute("aria-busy", "true");
+    const tab = appTabs.get(id);
+    if (!tab || tab.busy) return;
+    tab.busy = true;
+    tab.view.setAttribute("aria-busy", "true");
     try {
       const r = await window.host("apps.dispatch", { id, event });
+      if (!appTabs.has(id)) return; // a aba foi fechada enquanto o app rodava
       if (!r.ok) {
-        status(`${id}: ${errText(r)}`, true);
+        status(`${tab.name}: ${errText(r)}`, true);
         return;
       }
       status("");
-      fields = new Map();
-      view.replaceChildren();
-      render(r.value, view, id);
+      tab.fields = new Map();
+      tab.view.replaceChildren();
+      render(r.value, tab.view, id, tab);
     } finally {
-      view.removeAttribute("aria-busy");
-      busy = false;
+      tab.view.removeAttribute("aria-busy");
+      tab.busy = false;
     }
-  }
-
-  async function openAppView(a) {
-    openApp = a.id;
-    $("view-name").textContent = a.name;
-    $("list-section").hidden = true;
-    $("pending-section").hidden = true;
-    $("view-section").hidden = false;
-    $("view").replaceChildren();
-    fields = new Map();
-    await dispatch(a.id, { type: "init" });
-  }
-
-  function closeView() {
-    openApp = null;
-    fields = new Map();
-    $("view-section").hidden = true;
-    $("view").replaceChildren();
-    $("list-section").hidden = false;
-    refreshPending();
   }
 
   // ---- Lista e ações ----------------------------------------------------------------------
@@ -260,7 +286,7 @@
     const res = await window.host("apps.uninstall", { id: a.id, keep_data: keepData });
     if (!res.ok) status(errText(res), true);
     else status(keepData ? `${a.name} removido; os dados foram mantidos.` : `${a.name} removido.`);
-    if (openApp === a.id) closeView();
+    closeAppTab(a.id);
     refreshApps();
   }
 
@@ -277,14 +303,14 @@
         li.append(el("span", `com problema: ${a.problem}`, "badge problem"));
       } else {
         li.append(el("span", a.enabled ? "ativo" : "suspenso", "badge"));
-        const open = button("Abrir", () => openAppView(a), "primary");
+        const open = button("Abrir", () => openAppTab(a), "primary");
         open.disabled = !a.enabled;
         li.append(
           open,
           button(a.enabled ? "Suspender" : "Retomar", async () => {
             const res = await window.host("apps.set_enabled", { id: a.id, enabled: !a.enabled });
             if (!res.ok) status(errText(res), true);
-            if (a.enabled && openApp === a.id) closeView();
+            if (a.enabled) closeAppTab(a.id);
             refreshApps();
           }),
         );
@@ -326,7 +352,7 @@
     const box = $("pending");
     box.replaceChildren();
     const list = r.ok ? r.value : [];
-    $("pending-section").hidden = list.length === 0 || openApp !== null;
+    $("pending-section").hidden = list.length === 0;
     for (const { token, preview: p } of list) {
       const card = el("div", undefined, "consent");
       card.append(
@@ -405,7 +431,7 @@
         b.disabled = false;
         if (!d.ok) return status(errText(d), true);
         status(`${e.name} baixado e verificado: revise as permissões abaixo.`);
-        showTab("apps");
+        selectTab("apps");
         refreshPending();
       });
       li.append(b);
@@ -482,23 +508,56 @@
     });
   }
 
+  async function pickFile() {
+    const r = await window.host("apps.pick");
+    if (!r.ok) return status(errText(r), true);
+    if (r.value.picked) {
+      status("");
+      selectTab("apps");
+      refreshPending();
+    }
+  }
+
+  function handleMenu(action) {
+    switch (action) {
+      case "pick":
+        pickFile();
+        break;
+      case "close-tab":
+        if (currentTab.startsWith("app:")) closeAppTab(currentTab.slice(4));
+        break;
+      case "tab-apps":
+        selectTab("apps");
+        break;
+      case "tab-store":
+        selectTab("store");
+        break;
+      case "tab-settings":
+        selectTab("settings");
+        break;
+      case "next-tab":
+        cycleTab(1);
+        break;
+      case "prev-tab":
+        cycleTab(-1);
+        break;
+      case "update-check":
+        selectTab("settings");
+        $("update-check").click();
+        break;
+      case "diag":
+        selectTab("settings");
+        $("diag-run").click();
+        break;
+    }
+  }
+
   // ---- Inicialização ----------------------------------------------------------------------
   window.initAppsUi = async function () {
     for (const t of document.querySelectorAll("#tabs [data-tab]")) {
-      t.addEventListener("click", () => {
-        showTab(t.dataset.tab);
-        if (t.dataset.tab === "settings") refreshTrust();
-      });
+      t.addEventListener("click", () => selectTab(t.dataset.tab));
     }
-    $("view-close").addEventListener("click", closeView);
-    $("apps-pick").addEventListener("click", async () => {
-      const r = await window.host("apps.pick");
-      if (!r.ok) return status(errText(r), true);
-      if (r.value.picked) {
-        status("");
-        refreshPending();
-      }
-    });
+    $("apps-pick").addEventListener("click", pickFile);
     initTrustUi();
     // Atualização do host: a UI só pede "verificar" e "instalar"; endereço e chave são do Rust.
     $("update-check").addEventListener("click", async () => {
@@ -533,11 +592,18 @@
     try {
       await window.__TAURI__.event.listen("apps://staged", (e) => {
         status(e.payload ? `Pacote recusado: ${e.payload}` : "", !!e.payload);
-        if (!e.payload && openApp === null) showTab("apps");
+        if (!e.payload) selectTab("apps");
         refreshPending();
       });
     } catch (_) {
       /* sem eventos: a tela ainda funciona ao recarregar */
+    }
+    // Menu nativo: o Rust só avisa qual item foi escolhido (ids fixos); a ação roda aqui,
+    // pelos mesmos comandos de sempre.
+    try {
+      await window.__TAURI__.event.listen("menu://action", (e) => handleMenu(e.payload));
+    } catch (_) {
+      /* sem eventos: o menu não faz nada, a tela segue funcionando */
     }
     await refreshApps();
     await refreshPending();
