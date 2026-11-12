@@ -17,6 +17,13 @@ pub const MAX_ITEM_CHARS: usize = 200;
 pub const MAX_INPUTS: usize = 32;
 /// Tamanho máximo do valor de um campo de texto (inicial ou digitado).
 pub const MAX_VALUE_CHARS: usize = 1000;
+/// Tamanho máximo do valor de um campo de texto de várias linhas (`textarea`).
+pub const MAX_TEXTAREA_CHARS: usize = 4000;
+/// Linhas visíveis de um `textarea` (só aparência; o conteúdo pode ser maior).
+pub const MIN_TEXTAREA_ROWS: u8 = 2;
+pub const MAX_TEXTAREA_ROWS: u8 = 12;
+/// Soma dos caracteres de todos os valores de um evento de clique.
+pub const MAX_EVENT_VALUE_CHARS: usize = 16_000;
 pub const MAX_SELECT_OPTIONS: usize = 50;
 pub const MAX_ACTIONS_PER_ITEM: usize = 4;
 /// Teto do JSON de saída antes mesmo de interpretar.
@@ -103,6 +110,18 @@ pub enum Node {
         #[serde(default)]
         placeholder: String,
     },
+    /// Texto de várias linhas (notas, descrições). O valor vem em `values[id]`, com `\n`.
+    Textarea {
+        id: String,
+        label: String,
+        #[serde(default)]
+        value: String,
+        #[serde(default)]
+        placeholder: String,
+        /// Linhas visíveis (2 a 12; 0 = padrão de 4).
+        #[serde(default)]
+        rows: u8,
+    },
     Checkbox {
         id: String,
         label: String,
@@ -154,10 +173,16 @@ impl Event {
                 if values.len() > MAX_INPUTS {
                     return Err("valores demais".into());
                 }
+                let mut total = 0;
                 for (k, v) in values {
-                    if !valid_element_id(k) || !text_ok(v, MAX_VALUE_CHARS) {
+                    // O evento não sabe o tipo do campo: vale o teto do `textarea`.
+                    if !valid_element_id(k) || !text_ok(v, MAX_TEXTAREA_CHARS) {
                         return Err("valor de campo inválido".into());
                     }
+                    total += v.chars().count();
+                }
+                if total > MAX_EVENT_VALUE_CHARS {
+                    return Err("valores grandes demais".into());
                 }
                 Ok(())
             }
@@ -266,6 +291,25 @@ impl Node {
                     Ok(())
                 } else {
                     Err("campo de texto inválido".into())
+                }
+            }
+            Node::Textarea {
+                id,
+                label,
+                value,
+                placeholder,
+                rows,
+            } => {
+                input_id(id)?;
+                let rows_ok = *rows == 0 || (MIN_TEXTAREA_ROWS..=MAX_TEXTAREA_ROWS).contains(rows);
+                if rows_ok
+                    && line_ok(label, 80)
+                    && text_ok(value, MAX_TEXTAREA_CHARS)
+                    && line_ok(placeholder, 80)
+                {
+                    Ok(())
+                } else {
+                    Err("campo de texto longo inválido".into())
                 }
             }
             Node::Checkbox { id, label, .. } => {
@@ -398,7 +442,7 @@ mod tests {
             ("Titulo", "x".to_string()),
             ("a b", "x".to_string()),
             ("titulo", "a\u{0}b".to_string()),
-            ("titulo", "x".repeat(MAX_VALUE_CHARS + 1)),
+            ("titulo", "x".repeat(MAX_TEXTAREA_CHARS + 1)),
         ] {
             assert!(
                 click_with(k, v).validate().is_err(),
@@ -475,5 +519,61 @@ mod tests {
         let items = vec![item; 70].join(","); // 70 * (1 + 2) = 210 > MAX_NODES
         let tree = format!(r#"{{"type":"action_list","items":[{items}]}}"#);
         assert!(Node::parse(&tree).is_err());
+    }
+    #[test]
+    fn textarea_parses_with_newlines_and_respects_limits() {
+        let ok = r#"{"type":"stack","children":[{"type":"textarea","id":"notas","label":"Notas","value":"a\nb","rows":6},{"type":"button","id":"salvar","label":"Salvar"}]}"#;
+        assert!(Node::parse(ok).is_ok());
+        // Valor no teto e linhas no padrão (0) são aceitos.
+        let max = "x".repeat(MAX_TEXTAREA_CHARS);
+        assert!(Node::parse(&format!(
+            r#"{{"type":"textarea","id":"n","label":"N","value":"{max}"}}"#
+        ))
+        .is_ok());
+        for bad in [
+            // acima do teto
+            format!(
+                r#"{{"type":"textarea","id":"n","label":"N","value":"{}"}}"#,
+                "x".repeat(MAX_TEXTAREA_CHARS + 1)
+            ),
+            // linhas fora de 2..=12
+            r#"{"type":"textarea","id":"n","label":"N","rows":1}"#.to_string(),
+            r#"{"type":"textarea","id":"n","label":"N","rows":13}"#.to_string(),
+            // caractere de controle (exceto \n) e rótulo com quebra de linha
+            r#"{"type":"textarea","id":"n","label":"N","value":"a\u0000b"}"#.to_string(),
+            r#"{"type":"textarea","id":"n","label":"a\nb"}"#.to_string(),
+            // campo desconhecido
+            r#"{"type":"textarea","id":"n","label":"N","style":"x"}"#.to_string(),
+        ] {
+            assert!(Node::parse(&bad).is_err(), "deveria recusar {bad}");
+        }
+    }
+
+    #[test]
+    fn textarea_shares_the_unique_id_and_field_budget() {
+        let dup = r#"{"type":"stack","children":[{"type":"input","id":"a","label":"x"},{"type":"textarea","id":"a","label":"y"}]}"#;
+        assert!(Node::parse(dup).is_err());
+        let many: Vec<String> = (0..=MAX_INPUTS)
+            .map(|i| format!(r#"{{"type":"textarea","id":"t{i}","label":"x"}}"#))
+            .collect();
+        let tree = format!(r#"{{"type":"stack","children":[{}]}}"#, many.join(","));
+        assert!(Node::parse(&tree).is_err());
+    }
+
+    #[test]
+    fn click_values_accept_long_text_but_cap_the_total() {
+        let mut ev = Event::click("salvar");
+        if let Event::Click { values, .. } = &mut ev {
+            values.insert("notas".into(), "x\n".repeat(MAX_TEXTAREA_CHARS / 2));
+        }
+        assert!(ev.validate().is_ok());
+        // 5 campos de 4000 caracteres passam de 16 000 no total.
+        let mut big = Event::click("salvar");
+        if let Event::Click { values, .. } = &mut big {
+            for i in 0..5 {
+                values.insert(format!("t{i}"), "x".repeat(MAX_TEXTAREA_CHARS));
+            }
+        }
+        assert!(big.validate().is_err());
     }
 }

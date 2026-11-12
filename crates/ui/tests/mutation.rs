@@ -38,7 +38,7 @@ fn mutated_ui_trees_never_panic_and_accepted_ones_respect_limits() {
     let seeds = [
         r#"{"type":"stack","children":[{"type":"text","text":"oi"},{"type":"button","id":"inc","label":"+"},{"type":"list","items":["a","b","c"]}]}"#,
         r#"{"type":"text","text":"só texto com acentuação ção"}"#,
-        r#"{"type":"stack","children":[{"type":"heading","text":"T"},{"type":"row","children":[{"type":"input","id":"a","label":"x","value":"v"},{"type":"button","id":"ok","label":"Ok"}]},{"type":"checkbox","id":"c","label":"y","checked":true},{"type":"select","id":"s","label":"z","options":["a","b"],"selected":"b"},{"type":"divider"},{"type":"progress","value":10}]}"#,
+        r#"{"type":"stack","children":[{"type":"heading","text":"T"},{"type":"row","children":[{"type":"input","id":"a","label":"x","value":"v"},{"type":"button","id":"ok","label":"Ok"}]},{"type":"checkbox","id":"c","label":"y","checked":true},{"type":"select","id":"s","label":"z","options":["a","b"],"selected":"b"},{"type":"textarea","id":"t","label":"n","value":"a b","rows":3},{"type":"divider"},{"type":"progress","value":10}]}"#,
         r#"{"type":"action_list","items":[{"text":"a","done":true,"actions":[{"id":"x","label":"X"}]},{"text":"b"}]}"#,
         r#"{"type":"stack","children":[{"type":"stack","children":[{"type":"text","text":"x"}]}]}"#,
     ];

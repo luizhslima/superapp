@@ -116,11 +116,12 @@ que não for devolvido volta ao padrão. Enter num campo de texto aciona o botã
 | `action_list(itens)` / `item(texto, done, &[(id, rótulo)])` | até 100 itens; até 4 ações por item (cada ação é um botão com `id`); `done: Some(_)` mostra ☑/☐ e risca o concluído; item e ações contam no orçamento de nós |
 | `stack(filhos)` / `row(filhos)` | coluna / linha; profundidade até 8; no máximo 200 nós; saída total até 64 KiB |
 | `input(id, rótulo, valor)` | texto de uma linha; valor até 1000 caracteres; rótulo até 80 |
+| `textarea(id, rótulo, valor)` | texto de várias linhas (`\n`); valor até 4000 caracteres; 2–12 linhas visíveis; Enter faz nova linha; a soma dos valores de um clique é limitada a 16 000 caracteres |
 | `checkbox(id, rótulo, marcada)` | rótulo 1–80 caracteres |
 | `select(id, rótulo, opções, escolhida)` | 1–50 opções de até 80 caracteres; `escolhida` precisa estar nas opções (vazio = a primeira) |
 | `progress(0..=100, rótulo)` | barra de progresso com rótulo opcional |
 
-Campos (`input`, `checkbox`, `select`) precisam de `id` **único na tela**, no máximo 32 por
+Campos (`input`, `textarea`, `checkbox`, `select`) precisam de `id` **único na tela**, no máximo 32 por
 tela. Saída fora do catálogo ou dos limites vira o erro "UI inválida" para o usuário e **não** é
 desenhada. Não há como injetar HTML, estilo ou script. (O formato antigo do clique, sem
 `values`, continua valendo.)

@@ -94,6 +94,20 @@ pub mod ui {
             placeholder: String::new(),
         }
     }
+    /// Texto de várias linhas (até 4000 caracteres). O valor vem em `values[id]`, com `\n`.
+    pub fn textarea(
+        id: impl Into<String>,
+        label: impl Into<String>,
+        value: impl Into<String>,
+    ) -> Node {
+        Node::Textarea {
+            id: id.into(),
+            label: label.into(),
+            value: value.into(),
+            placeholder: String::new(),
+            rows: 0,
+        }
+    }
     pub fn checkbox(id: impl Into<String>, label: impl Into<String>, checked: bool) -> Node {
         Node::Checkbox {
             id: id.into(),

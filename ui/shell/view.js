@@ -110,6 +110,17 @@
         parent.append(labelled(node.label, i));
         break;
       }
+      case "textarea": {
+        const t = document.createElement("textarea");
+        t.maxLength = 4000;
+        t.rows = node.rows >= 2 && node.rows <= 12 ? node.rows : 4;
+        t.value = node.value || "";
+        t.placeholder = node.placeholder || "";
+        // Enter faz nova linha (não aciona botão); o valor viaja só no clique de um botão.
+        fields.set(node.id, () => t.value.replace(/\r\n?/g, "\n"));
+        parent.append(labelled(node.label, t));
+        break;
+      }
       case "checkbox": {
         const c = document.createElement("input");
         c.type = "checkbox";
