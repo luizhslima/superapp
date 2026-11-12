@@ -1,6 +1,6 @@
 # Feature: ferramentas de apoio à criação de startups (fase 1: Discovery)
 
-**Status:** D0 (modelo de dados) e D1 (`textarea`) feitos em 2026-11-12; mini-app ainda não começou.
+**Status:** D0, D1 e D2 feitos em 2026-11-12 (Território, Hipóteses, Entrevistas e Roteiro em `miniapps/discovery`); faltam Evidências, painel e decisão (D3).
 **Pesquisa de base:** [docs/research/](../research/)
 ([Customer Discovery B2B e stack open source](../research/customer-discovery-b2b-e-stack-opensource.md),
 [literatura sobre IA e ciclo de validação](../research/literatura-ia-e-ciclo-de-validacao.md)).
@@ -68,7 +68,7 @@ declarativa; o estado vive no storage (cada evento roda numa instância nova).
 - ✅ **D0** Modelo de dados + esquema de chaves do storage, versionado (`schema: 1`), com migração
   prevista. Doc curto em `docs/dev/`.
 - ✅ **D1** `textarea` na UI declarativa (crate `ui`, renderer do shell, SDK, testes, fuzz).
-- **D2** Mini-app `discovery`: Território, Hipóteses, Entrevistas (testes de ponta a ponta em Wasm,
+- ✅ **D2** Mini-app `discovery`: Território, Hipóteses, Entrevistas (testes de ponta a ponta em Wasm,
   como `tarefas`).
 - **D3** Evidências, painel e decisão.
 - **D4** Exportação Markdown; uso real por duas semanas e revisão.

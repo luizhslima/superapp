@@ -17,6 +17,7 @@ pub fn guest(dir: PathBuf, file: &str) -> Vec<u8> {
             root().join("miniapps/counter"),
             root().join("miniapps/clicker"),
             root().join("miniapps/tarefas"),
+            root().join("miniapps/discovery"),
         ] {
             let status = Command::new(std::env::var("CARGO").unwrap_or("cargo".into()))
                 .args(["build", "--release", "--target", "wasm32-wasip2"])
@@ -40,4 +41,8 @@ pub fn tarefas_wasm() -> Vec<u8> {
 
 pub fn clicker_wasm() -> Vec<u8> {
     guest(root().join("miniapps/clicker"), "clicker.wasm")
+}
+
+pub fn discovery_wasm() -> Vec<u8> {
+    guest(root().join("miniapps/discovery"), "discovery.wasm")
 }

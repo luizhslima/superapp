@@ -21,33 +21,33 @@ Este documento fixa **o que se guarda e como**, antes de escrever o mini-app.
 | `meta` | `{"schema":1,"seq":N}`: versão do esquema e contador de ids |
 | `ui` | `{"tela":"entrevistas","sel":"i7","filtro":"h2"}`: tela atual, item aberto e filtro |
 | `idx:t` `idx:h` `idx:i` `idx:v` `idx:d` | lista de ids de cada coleção, em ordem de criação (`["h1","h4"]`) |
-| `t:<id>` | território |
-| `h:<id>` | hipótese |
-| `i:<id>` | entrevista (ficha) |
-| `v:<id>` | evidência |
-| `d:<id>` | decisão |
+| `t1`, `t2`... | território (a chave é o próprio id) |
+| `h3`... | hipótese |
+| `i4`... | entrevista (ficha) |
+| `v5`... | evidência (D3) |
+| `d6`... | decisão (D3) |
 
 Ids: prefixo da coleção + número de `meta.seq` (`h1`, `i7`, ...). Nunca reaproveitados.
-Datas: milissegundos Unix (`clock`), campo `em`.
+`em`: milissegundos Unix (permissão `clock`), data de criação. Papel e canal são guardados como códigos (`executor`, `indicacao`...) e mostrados com rótulos em português.
 
 ## Registros
 
 Todos os campos de texto são limitados em **caracteres**; o app recorta/recusa antes de gravar.
 
-**Território** `t:<id>` (máx. 5): `nome` (≤ 80), `processo`, `executor`, `responsavel`,
+**Território** `t<n>` (máx. 5): `nome` (≤ 80), `processo`, `executor`, `responsavel`,
 `contexto`, `alternativa`, `gatilho` (cada um ≤ 300), `em`.
 
-**Hipótese** `h:<id>` (máx. 50): `t` (id do território), `texto` (≤ 500), `procura` (evidência
+**Hipótese** `h<n>` (máx. **20**: cada uma vira uma caixa de marcação na ficha de entrevista e a tela aceita 32 campos): `t` (id do território), `texto` (≤ 500), `procura` (evidência
 procurada, ≤ 500), `contra` (evidência contrária, ≤ 500), `experimento` (≤ 500), `status`
 (`aberta` | `confirmada` | `refutada` | `reformulada`), `em`.
 
-**Entrevista** `i:<id>` (máx. 200): `h` (ids de hipóteses testadas), `participante` (**código**,
+**Entrevista** `i<n>` (máx. 200): `h` (ids de hipóteses testadas), `participante` (**código**,
 ex. `P3`; ver Privacidade), `empresa` (≤ 80, opcional), `papel` (`executor` | `responsavel` |
 `comprador` | `outro`), `canal` (`indicacao` | `comunidade` | `email` | `evento` | `outro`),
-`data` (ms), `fato`, `interpretacao`, `duvida` (cada ≤ 4000), `observacao` (houve observação
+`data` (texto `AAAA-MM-DD`, opcional), `fato`, `interpretacao`, `duvida` (cada ≤ 4000), `observacao` (houve observação
 autorizada: bool), `em`.
 
-**Evidência** `v:<id>` (máx. 500): `h` (id da hipótese), `fonte` (`i:<id>` ou texto/URL ≤ 300),
+**Evidência** `v<n>` (máx. 500): `h` (id da hipótese), `fonte` (`i:<id>` ou texto/URL ≤ 300),
 `resumo` (≤ 500), `forca` (1 a 7), `contra` (bool: evidência **contrária**), `empresa` (≤ 80,
 herdada da entrevista quando há), `em`.
 
@@ -55,7 +55,7 @@ Escala de força (do doc de pesquisa): 1 reclamação pública · 2 entrevista d
 3 observação autorizada · 4 tentativa anterior de solução · 5 acesso ao responsável ·
 6 piloto com escopo · 7 pagamento.
 
-**Decisão** `d:<id>` (máx. 100): `t` (território), `h` (hipóteses consideradas), `escolha`
+**Decisão** `d<n>` (máx. 100): `t` (território), `h` (hipóteses consideradas), `escolha`
 (`avancar` | `restringir` | `reformular` | `abandonar`), `porque` (≤ 1000), `proximo` (próximo
 experimento, ≤ 500), `em`.
 
@@ -79,10 +79,10 @@ com os valores). Aviso proativo previsto quando o uso estimado passar de 3 MiB.
 
 ## Consistência
 
-- Escrita de um registro novo: (1) `meta.seq`, (2) `x:<id>`, (3) `idx:x`. Uma queda no meio deixa, no
+- Escrita de um registro novo: (1) `meta.seq`, (2) registro, (3) `idx:x`. Uma queda no meio deixa, no
   pior caso, um registro **órfão** (existe, mas fora do índice) ou um id queimado, nunca um
   índice apontando para o vazio.
-- Remoção: (1) `idx:x`, (2) `x:<id>`. Remover uma hipótese pergunta o que fazer com evidências e
+- Remoção: (1) `idx:x`, (2) registro. Remover uma hipótese pergunta o que fazer com evidências e
   entrevistas ligadas (desligar, nunca apagar em cascata).
 - **Reparo na abertura** (`Init`): remove do índice ids sem registro e reinclui órfãos já
   conhecidos pelo prefixo da sequência (`1..=meta.seq`). Barato porque a sequência é curta.

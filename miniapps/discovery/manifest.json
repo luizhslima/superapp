@@ -1,0 +1,10 @@
+{
+  "id": "discovery",
+  "name": "Discovery",
+  "permissions": [
+    "storage",
+    "clock"
+  ],
+  "schema": 1,
+  "version": "0.1.0"
+}
