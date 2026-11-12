@@ -119,6 +119,19 @@ async function appsTest() {
   t.exceed = await window.host("apps.install", { token, approved: ["storage", "clock"] });
   t.install = await window.host("apps.install", { token, approved: ["storage"] });
   const ev = (event) => window.host("apps.dispatch", { id: "clicker", event });
+  // Janela nativa do mini-app (rótulo app-clicker, criada pelo host): ela mesma pede a UI pelo
+  // `view.dispatch` e avisa por BroadcastChannel que desenhou. A janela principal não tem essa
+  // capability, e ids inválidos ou de apps não instalados são recusados.
+  const bcv = new BroadcastChannel("appview");
+  const drawn = new Promise((res) => {
+    bcv.onmessage = (e) => res(e.data);
+    setTimeout(() => res(null), 15000);
+  });
+  t.open_bad = await window.host("apps.open", { id: "../x" });
+  t.open_missing = await window.host("apps.open", { id: "nao-existe" });
+  t.view_from_main = await window.host("view.dispatch", { event: { type: "init" } });
+  t.open = await window.host("apps.open", { id: "clicker" });
+  t.view = await drawn;
   t.init = await ev({ type: "init" });
   await ev({ type: "click", id: "inc" });
   t.click = await ev({ type: "click", id: "inc" });
@@ -143,6 +156,7 @@ async function appsTest() {
   t.resumed = await ev({ type: "init" });
   t.list = await window.host("apps.list");
   t.uninstall = await window.host("apps.uninstall", { id: "clicker", keep_data: false });
+  t.window_after_uninstall = await new Promise((res) => setTimeout(() => res(true), 300));
   t.after = await window.host("apps.list");
   t.gone = await ev({ type: "init" });
   t.pending_after = (await window.host("apps.pending")).value.length;

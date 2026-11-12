@@ -1,5 +1,6 @@
 //! Host Tauri: encaminha todo comando da UI para o `Router` do core.
 mod apps;
+mod appwin;
 mod data;
 mod diag;
 mod menu;
@@ -165,6 +166,9 @@ fn build_router(
         .grant("main", store::CAP)
         .grant("main", trust::CAP)
         .grant("main", data::CAP)
+        .grant("main", menu::CAP)
+        // Janelas de mini-app (rótulo `app-<id>`, criadas só pelo host): só rodar o próprio app.
+        .grant_prefix(appwin::PREFIX, appwin::CAP)
         .grant("mfe-a", "app:read")
         .grant("mfe-b", "app:read");
     if bench_out.is_some() {
@@ -237,7 +241,8 @@ fn build_router(
         .and_then(|d| apps::open(d, audit_for_apps))
     {
         Ok(st) => {
-            apps::register(&mut r, st.clone());
+            apps::register(&mut r, st.clone(), app.clone());
+            appwin::register(&mut r, st.clone(), app.clone());
             store::register(&mut r, st.clone());
             trust::register(&mut r, st.clone());
             data::register(&mut r, st.clone(), app.clone());
@@ -245,6 +250,7 @@ fn build_router(
         }
         Err(e) => tracing::error!(error = %e, "gerenciador de mini-apps desativado"),
     }
+    menu::register(&mut r, app.clone());
     updates::register(&mut r, app.clone());
     diag::register(&mut r, diag, start, app.clone());
     // Existe, mas nenhuma janela tem a capability: serve para provar o bloqueio.
@@ -338,9 +344,12 @@ pub fn run() {
                     }
                 }
             }
-            // Barra de menu nativa (só emite eventos de ids fixos para a janela principal).
-            if let Err(e) = menu::install(app.handle()) {
-                tracing::error!(error = %e, "menu nativo desativado");
+            // Menu nativo (☰ no Windows/Linux, menus padrão no macOS): itens de ação só emitem
+            // ids fixos para a janela principal; abrir mini-app é tratado aqui, validado.
+            app.manage(menu::MenuState::default());
+            menu::init(app.handle());
+            if let Some(st) = app.try_state::<Arc<apps::AppsState>>() {
+                menu::rebuild(app.handle(), &st);
             }
             if smoke_out.is_some() {
                 // Janela sem nenhuma capability, só no modo smoke.

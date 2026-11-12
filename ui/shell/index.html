@@ -7,38 +7,15 @@
 </head>
 <body>
   <header id="topbar">
-    <div class="menu-wrap">
-      <button type="button" id="hamburger" aria-label="Menu" aria-haspopup="menu" aria-expanded="false" aria-controls="menu">&#9776;</button>
-      <div id="menu" role="menu" aria-label="Menu principal" hidden>
-        <button type="button" role="menuitem" data-action="tab-apps">Mini-apps</button>
-        <button type="button" role="menuitem" data-action="tab-store">Loja</button>
-        <button type="button" role="menuitem" data-action="tab-settings">Configurações</button>
-        <hr role="separator">
-        <button type="button" role="menuitem" data-action="pick">Instalar de um arquivo .sapp...</button>
-        <button type="button" role="menuitem" data-action="update-check">Verificar atualizações</button>
-        <button type="button" role="menuitem" data-action="diag">Relatório de diagnóstico</button>
-      </div>
-    </div>
+    <button type="button" id="burger" aria-label="Menu" aria-haspopup="menu" title="Menu (Arquivo, Editar, Exibir, Ajuda)">&#9776;</button>
     <h1>Superapp</h1>
-    <nav id="tabs" role="tablist" aria-label="Abas">
-      <button type="button" role="tab" id="tab-apps" data-tab="apps" aria-selected="true" aria-controls="panel-apps">Mini-apps</button>
-      <!-- Loja e Configurações abrem pelo menu e só aparecem como aba enquanto estão ativas -->
-      <span class="tab-wrap" data-section="store" hidden>
-        <button type="button" role="tab" id="tab-store" data-tab="store" aria-selected="false" aria-controls="panel-store">Loja</button>
-        <button type="button" class="tab-close" data-close="store" aria-label="Fechar Loja">&times;</button>
-      </span>
-      <span class="tab-wrap" data-section="settings" hidden>
-        <button type="button" role="tab" id="tab-settings" data-tab="settings" aria-selected="false" aria-controls="panel-settings">Configurações</button>
-        <button type="button" class="tab-close" data-close="settings" aria-label="Fechar Configurações">&times;</button>
-      </span>
-    </nav>
     <pre id="out">carregando...</pre>
   </header>
 
   <p id="status" role="status" aria-live="polite"></p>
 
-  <!-- Mini-apps: lista, consentimento e o app aberto (que ocupa o lugar da lista) -->
-  <main id="panel-apps" role="tabpanel" aria-labelledby="tab-apps" data-panel="apps">
+  <!-- Seções da janela principal; quem troca é o menu nativo (Exibir). Cada mini-app abre na sua própria janela. -->
+  <main id="panel-apps" data-panel="apps">
     <section aria-labelledby="h-pending" id="pending-section" hidden>
       <h2 id="h-pending">Aguardando seu consentimento</h2>
       <div id="pending"></div>
@@ -53,7 +30,7 @@
   </main>
 
   <!-- Loja: catálogo assinado -->
-  <main id="panel-store" role="tabpanel" aria-labelledby="tab-store" data-panel="store" hidden>
+  <main id="panel-store" data-panel="store" hidden>
     <section aria-labelledby="h-store">
       <h2 id="h-store">Catálogo de mini-apps</h2>
       <p class="hint">Lista assinada, publicada em endereço fixo. Baixar só prepara o pacote: você ainda revisa as permissões antes de instalar.</p>
@@ -64,7 +41,7 @@
   </main>
 
   <!-- Configurações: atualização, chaves confiáveis, diagnóstico -->
-  <main id="panel-settings" role="tabpanel" aria-labelledby="tab-settings" data-panel="settings" hidden>
+  <main id="panel-settings" data-panel="settings" hidden>
     <section aria-labelledby="h-update">
       <h2 id="h-update">Atualização do Superapp</h2>
       <button id="update-check" type="button">Verificar atualizações</button>

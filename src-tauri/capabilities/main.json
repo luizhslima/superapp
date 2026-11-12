@@ -2,6 +2,6 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "main",
   "description": "Janelas da UI só podem chamar o comando `ipc`; o resto é decidido pelo Router do core.",
-  "windows": ["main", "untrusted", "mfe-*"],
+  "windows": ["main", "untrusted", "mfe-*", "app-*"],
   "permissions": ["allow-ipc", "allow-ipc-bytes", "core:event:default"]
 }

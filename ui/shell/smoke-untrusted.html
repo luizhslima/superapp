@@ -24,9 +24,13 @@
       const dataImp = await window.host("data.import", { id: "clicker" });
       const appsPick = await window.host("apps.pick");
       const restart = await window.host("app.restart");
+      const quit = await window.host("app.quit");
+      const menuPopup = await window.host("menu.popup");
+      const viewDispatch = await window.host("view.dispatch", { event: { type: "init" } });
+      const appsOpen = await window.host("apps.open", { id: "clicker" });
       bc.postMessage({
         info, echo, bytes, blob, apps, appsRun, upd, updInstall, diag, storeCat, storeDl,
-        trustList, trustAdd, trustRm, dataExp, dataImp, appsPick, restart,
+        trustList, trustAdd, trustRm, dataExp, dataImp, appsPick, restart, quit, menuPopup, viewDispatch, appsOpen,
       });
     })();
   </script>

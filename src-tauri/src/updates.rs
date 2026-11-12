@@ -48,6 +48,13 @@ pub fn register(r: &mut Router, app: tauri::AppHandle) {
         Ok::<Value, IpcError>(Value::Null)
     });
 
+    // Encerra o app (menu Arquivo > Sair). Não recebe argumento algum.
+    let h = app.clone();
+    r.register("app.quit", CAP, move |_c, _a: Value| {
+        h.exit(0);
+        Ok::<Value, IpcError>(Value::Null)
+    });
+
     // Baixa, confere a assinatura, instala e reinicia. Só age sobre o que o `check` achou
     // agora: não aceita versão nem URL da UI.
     r.register("app.update.install", CAP, move |_c, _a: Value| {

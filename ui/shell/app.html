@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <title>Mini-app</title>
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <!-- Janela de um mini-app (rótulo app-<id>, criada pelo host). O app é identificado pelo
+       rótulo no Rust; esta página nunca informa qual app quer falar. -->
+  <p id="status" role="status" aria-live="polite"></p>
+  <main>
+    <div id="view" class="view" aria-live="polite"></div>
+  </main>
+  <script src="ipc.js"></script>
+  <script src="view.js"></script>
+</body>
+</html>

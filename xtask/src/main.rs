@@ -64,11 +64,13 @@ fn smoke() -> bool {
     ) {
         return false;
     }
-    let exe = if cfg!(windows) {
-        "target/debug/superapp.exe"
-    } else {
-        "target/debug/superapp"
-    };
+    // Respeita CARGO_TARGET_DIR (permite rodar o smoke com o app em uso, que trava o .exe).
+    let target = std::env::var("CARGO_TARGET_DIR").unwrap_or_else(|_| "target".into());
+    let exe = format!(
+        "{target}/debug/superapp{}",
+        if cfg!(windows) { ".exe" } else { "" }
+    );
+    let exe = exe.as_str();
     let out = std::env::temp_dir().join(format!("superapp-smoke-{}.json", std::process::id()));
     let _ = std::fs::remove_file(&out);
     let Some((data_dir, sapp)) = prepare_smoke_package() else {
@@ -275,10 +277,26 @@ fn check_report(report: &Value) -> bool {
                 .all(|k| code(&r["untrusted"][*k]) == "permission_denied"),
         ),
         (
-            "data/apps.pick/restart: janela sem capability não exporta, importa, escolhe arquivo nem reinicia",
-            ["dataExp", "dataImp", "appsPick", "restart"]
+            "data/apps.pick/restart: janela sem capability não exporta, importa, escolhe arquivo, reinicia nem encerra",
+            ["dataExp", "dataImp", "appsPick", "restart", "quit", "menuPopup"]
                 .iter()
                 .all(|k| code(&r["untrusted"][*k]) == "permission_denied"),
+        ),
+        (
+            "view: janela principal e janela sem capability não executam view.dispatch nem apps.open",
+            code(&ap["view_from_main"]) == "permission_denied"
+                && code(&r["untrusted"]["viewDispatch"]) == "permission_denied"
+                && code(&r["untrusted"]["appsOpen"]) == "permission_denied",
+        ),
+        (
+            "apps.open: recusa id inválido e app não instalado",
+            code(&ap["open_bad"]) == "invalid_args" && code(&ap["open_missing"]) == "not_found",
+        ),
+        (
+            "apps.open: abre a janela nativa do mini-app, que desenha a UI do próprio app",
+            ap["open"]["ok"] == true
+                && ap["view"]["ok"] == true
+                && ap["view"]["text"].as_str().is_some_and(|t| t.contains("Cliques")),
         ),
         (
             "ui: valores de campos no clique são validados e o formato antigo segue valendo",

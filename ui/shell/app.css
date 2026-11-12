@@ -51,57 +51,18 @@ pre#out { margin: 0 0 0 auto; color: var(--muted); font-size: 0.8rem; }
 #status { margin: 6px 0; padding: 5px 10px; border: 1px solid var(--line); border-radius: 6px; }
 #status.error { border-color: var(--danger); color: var(--danger); }
 
-/* Barra de topo: hambúrguer, título, abas, versão */
+/* Barra de topo: título e versão (menu e janelas de mini-app são nativos) */
 #topbar {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 0 0;
+  gap: 12px;
+  min-height: 52px;
+  padding: 6px 0;
   border-bottom: 1px solid var(--line);
-  position: sticky;
-  top: 0;
-  background: var(--bg);
-  z-index: 10;
 }
-.menu-wrap { position: relative; align-self: center; margin-bottom: 4px; }
-#hamburger { font-size: 1.1rem; line-height: 1; padding: 4px 9px; }
-#menu {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0;
-  min-width: 230px;
-  padding: 4px;
-  background: var(--bg);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  box-shadow: var(--shadow);
-  display: flex;
-  flex-direction: column;
-}
-#menu[hidden] { display: none; }
-#menu button {
-  border: 0;
-  border-radius: 5px;
-  text-align: left;
-  padding: 6px 10px;
-}
-#menu button:hover, #menu button:focus-visible { background: var(--hover); outline: none; }
-#menu hr { border: 0; border-top: 1px solid var(--line); margin: 4px 2px; width: auto; }
-
-/* Abas: uma faixa rolável com as abas abertas */
-#tabs { display: flex; flex: 1 1 auto; min-width: 0; overflow-x: auto; gap: 2px; }
-#tabs button {
-  border: 0;
-  border-bottom: 2px solid transparent;
-  border-radius: 5px 5px 0 0;
-  padding: 5px 10px;
-  white-space: nowrap;
-}
-#tabs button[aria-selected="true"] { border-bottom-color: var(--accent); font-weight: 600; }
-.tab-wrap { display: inline-flex; align-items: stretch; }
-.tab-wrap[hidden] { display: none; }
-#tabs .tab-close { padding: 5px 5px; color: var(--muted); }
-#tabs .tab-close:hover { color: var(--danger); }
+#topbar h1 { font-size: 1.25rem; }
+#burger { font-size: 1.7rem; line-height: 1; padding: 6px 14px; border-radius: 8px; }
+#burger:hover { background: var(--hover); }
 
 button {
   font: inherit;
@@ -117,7 +78,6 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 button:disabled { opacity: 0.5; cursor: default; }
 button.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 button.danger { color: var(--danger); }
-#tabs button:hover, #hamburger:hover { background: var(--hover); }
 
 /* Listas de apps / loja / chaves */
 ul#apps, ul#store-list, ul#trust-list { list-style: none; margin: 0; padding: 0; }

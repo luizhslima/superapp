@@ -24,7 +24,7 @@ cargo xtask build-app minhas-notas G:/dev/secrets/superapp-publisher.key   # com
 O resultado é `miniapps/minhas-notas/minhas-notas.sapp`: arraste para o Superapp ou use
 **Instalar de um arquivo .sapp** na aba Mini-apps. O gabarito é uma cópia de
 [`miniapps/tarefas`](../../miniapps/tarefas), que usa campo de texto, linha, lista com ações e
-progresso e é testado de ponta a ponta. Só funciona se a chave que assinou estiver em
+progresso e é testado de ponta a ponta. Cada mini-app aberto ganha a própria janela do sistema (no macOS, abas nativas); a janela só fala com o próprio app. Só funciona se a chave que assinou estiver em
 **Configurações → Autores confiáveis** (reinicie depois de adicionar).
 
 ## Começando (Rust)

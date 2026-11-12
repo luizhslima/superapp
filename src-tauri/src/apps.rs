@@ -105,7 +105,7 @@ impl AppsState {
     }
 }
 
-fn map_err(e: LifecycleError) -> IpcError {
+pub(crate) fn map_err(e: LifecycleError) -> IpcError {
     let msg = e.to_string();
     match e {
         LifecycleError::NotInstalled => IpcError::new(ErrorCode::NotFound, msg),
@@ -161,7 +161,7 @@ struct DispatchArgs {
 /// Capability única dos comandos de gerenciamento. Só a janela principal a recebe.
 pub const CAP: &str = "apps:manage";
 
-pub fn register(r: &mut Router, st: Arc<AppsState>) {
+pub fn register(r: &mut Router, st: Arc<AppsState>, app: tauri::AppHandle) {
     let s = st.clone();
     r.register("apps.list", CAP, move |_c, _a: Value| Ok(s.registry.list()));
 
@@ -173,7 +173,7 @@ pub fn register(r: &mut Router, st: Arc<AppsState>) {
             .collect::<Vec<_>>())
     });
 
-    let s = st.clone();
+    let (s, h) = (st.clone(), app.clone());
     r.register("apps.install", CAP, move |_c, a: InstallArgs| {
         let mut p = s.pending.lock().expect("pending");
         let idx = p
@@ -185,6 +185,7 @@ pub fn register(r: &mut Router, st: Arc<AppsState>) {
             .install(&p[idx].bytes, &a.approved)
             .map_err(map_err)?;
         p.remove(idx);
+        crate::menu::rebuild(&h, &s);
         Ok(installed)
     });
 
@@ -197,14 +198,21 @@ pub fn register(r: &mut Router, st: Arc<AppsState>) {
         Ok(Value::Null)
     });
 
-    let s = st.clone();
+    let (s, h) = (st.clone(), app.clone());
     r.register("apps.set_enabled", CAP, move |_c, a: EnableArgs| {
-        s.registry.set_enabled(&a.id, a.enabled).map_err(map_err)
+        let out = s.registry.set_enabled(&a.id, a.enabled).map_err(map_err)?;
+        if !a.enabled {
+            crate::appwin::close(&h, &a.id);
+        }
+        crate::menu::rebuild(&h, &s);
+        Ok(out)
     });
 
-    let s = st.clone();
+    let (s, h) = (st.clone(), app.clone());
     r.register("apps.uninstall", CAP, move |_c, a: UninstallArgs| {
         s.registry.uninstall(&a.id, a.keep_data).map_err(map_err)?;
+        crate::appwin::close(&h, &a.id);
+        crate::menu::rebuild(&h, &s);
         Ok(Value::Null)
     });
 
