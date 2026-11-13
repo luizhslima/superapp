@@ -272,6 +272,7 @@ mod packaged {
             permissions: perms,
             wasm_sha256: String::new(),
             limits: None,
+            network: None,
         }
     }
 

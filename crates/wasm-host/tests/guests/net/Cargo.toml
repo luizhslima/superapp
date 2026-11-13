@@ -1,0 +1,19 @@
+[package]
+name = "net-guest"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+superapp-sdk = { path = "../../../../../miniapps/sdk" }
+
+[profile.release]
+opt-level = "s"
+lto = true
+strip = true
+
+# Projeto independente: não faz parte do workspace do repositório.
+[workspace]

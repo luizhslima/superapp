@@ -39,8 +39,10 @@ pub fn open(data_dir: PathBuf, audit: Arc<dyn AuditSink>) -> Result<Arc<AppsStat
         Ok(t) => TrustStore::from_hex_lines(&t)?,
         Err(_) => TrustStore::default(),
     };
-    let registry =
+    let mut registry =
         Registry::open(data_dir.clone(), trust.clone(), audit).map_err(|e| e.to_string())?;
+    // Rede mediada (ADR-011): só mini-apps com `http` aprovada e domínios no manifesto a usam.
+    registry.set_net_backend(Arc::new(crate::netbackend::ReqwestBackend));
     Ok(Arc::new(AppsState {
         registry,
         trust,

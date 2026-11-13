@@ -10,6 +10,8 @@ pub enum Decision {
     DeniedByHook,
     /// Corpo binário acima do limite do comando (entrada) ou resposta acima do limite (saída).
     DeniedTooLarge,
+    /// Chamada de rede de um mini-app barrada pelas regras do host (domínio, IP, limite...).
+    DeniedByNetworkRule,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -4,6 +4,7 @@ mod appwin;
 mod data;
 mod diag;
 mod menu;
+mod netbackend;
 mod store;
 mod trust;
 mod updates;

@@ -145,9 +145,41 @@ veja "Outras linguagens" acima.
 | `log` | mensagens de diagnóstico (limitadas em linhas e tamanho) | `superapp_sdk::log` |
 | `storage` | chave-valor próprio: chave ≤ 100 B, valor ≤ 1 MiB, total ≤ 4 MiB | `superapp_sdk::storage` |
 | `clock` | milissegundos desde a época Unix | `superapp_sdk::now_ms` |
+| `http` | requisições **https** pelo host, só para os domínios de `network.hosts` (ver "Internet") | `superapp_sdk::http` |
 
 Se o código importar algo que o manifesto não declara (ou que o usuário não aprovou), o
 mini-app **não carrega**, e a recusa vai para a auditoria.
+
+## Internet (`http`)
+
+O app não abre conexão: ele pede ao host, que só atende o que o manifesto declarou **e** o usuário aprovou
+([ADR-011](../plan/04-adrs/ADR-011-miniapp-network.md)). O consentimento lista os domínios e avisa que o app
+pode enviar a eles qualquer dado que lê.
+
+```json
+{ "permissions": ["storage", "http"],
+  "network": { "hosts": ["api.exemplo.com", "*.reddit.com"] },
+  "limits": { "timeout_ms": 20000 } }
+```
+
+```rust
+let r = superapp_sdk::http::get("https://api.exemplo.com/v1/itens?q=abc")?;
+// r.status, r.content_type, r.body
+let r = superapp_sdk::http::post("https://api.exemplo.com/v1/itens", "application/json", b"{}")?;
+```
+
+- `network.hosts`: de 1 a 8 domínios em minúsculas; `*.x.com` vale **um** nível (`a.x.com`, não `x.com` nem
+  `a.b.x.com`). Nunca IP, nunca `localhost`. Declarar `network` sem `http` (ou `http` sem `network`) invalida o pacote.
+- Só `https` na porta 443, `GET` e `POST`, sem usuário/senha na URL. Cabeçalhos: só `accept` e `content-type`
+  (sem `Authorization` nem cookies; chaves de API virão com o cofre de segredos).
+- O host resolve o DNS e **recusa se algum IP não for público** (loopback, redes privadas, metadata de nuvem...);
+  cada redirecionamento é revalidado do zero (até 3).
+- Envio até 64 KiB; resposta até 1 MiB e só texto, JSON ou XML (acima disso é erro, nunca truncado).
+- Até **4 chamadas por execução** e 30 por minuto por app; 10 s por chamada. O limite de execução do app
+  (padrão 5 s) também vale: peça `limits.timeout_ms` maior se a rede for lenta.
+- Cada chamada vai para a auditoria (host, método, status, bytes; sem a query).
+- **Dica de segurança**: um app que guarda dados pessoais (como fichas de entrevista) não deve pedir `http`.
+  Use outro app para coletar e passe o resultado por arquivo de importação.
 
 ## Limites de execução
 

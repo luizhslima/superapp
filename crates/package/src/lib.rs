@@ -15,7 +15,9 @@ pub mod manifest;
 use ed25519_dalek::{Signature, Signer, SigningKey, VerifyingKey};
 use sha2::{Digest, Sha256};
 
-pub use manifest::{valid_app_id, Manifest, Permission, RequestedLimits};
+pub use manifest::{
+    valid_app_id, valid_network_host, Manifest, Network, Permission, RequestedLimits,
+};
 
 const MAGIC: &[u8; 4] = b"SAPP";
 const FORMAT_VERSION: u8 = 1;
@@ -261,6 +263,7 @@ mod tests {
             permissions: vec![Permission::Log, Permission::Storage],
             wasm_sha256: String::new(), // recalculado por `pack`
             limits: None,
+            network: None,
         }
     }
 

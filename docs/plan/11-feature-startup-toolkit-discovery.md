@@ -109,7 +109,7 @@ de dar rede ao host.
 
 - ✅ **B0** [ADR-011](04-adrs/ADR-011-miniapp-network.md): rede mediada pelo host (`http`), com `llm`, cofre de segredos e execução periódica como passos seguintes (Proposed). Mini-app com UI própria (Next/Vite estático): [ADR-012](04-adrs/ADR-012-web-miniapps.md), adiado.
 - **B1** Spike do coletor com **inbox de arquivo** (sem mexer no host) + relatório curto.
-- **B2** Só se B1 provar valor: implementar a capability escolhida no ADR, com testes de negação
+- **B2** Capability de rede do [ADR-011](04-adrs/ADR-011-miniapp-network.md): **v1 feita em 2026-11-13** (antes do B1, por decisão do dono). Faltam cofre de segredos, `llm` e execução periódica.
   (política, domínios, tamanho) e smoke.
 
 ## Ordem sugerida

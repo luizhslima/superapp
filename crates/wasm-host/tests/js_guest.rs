@@ -46,6 +46,7 @@ fn manifest() -> Manifest {
         wasm_sha256: String::new(),
         // Sem limites customizados: os padrões (50 M de fuel, 16 MiB, 5 s) bastam, como medido.
         limits: None,
+        network: None,
     }
 }
 

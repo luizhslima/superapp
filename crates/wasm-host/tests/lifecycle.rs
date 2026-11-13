@@ -34,6 +34,7 @@ fn package(version: &str, perms: Vec<Permission>) -> Vec<u8> {
         permissions: perms,
         wasm_sha256: String::new(),
         limits: None,
+        network: None,
     };
     pack(&author(), &m, &clicker_wasm()).unwrap()
 }
@@ -350,6 +351,7 @@ fn tarefas_pkg() -> Vec<u8> {
         permissions: vec![Permission::Storage],
         wasm_sha256: String::new(),
         limits: None,
+        network: None,
     };
     pack(&author(), &m, &tarefas_wasm()).unwrap()
 }

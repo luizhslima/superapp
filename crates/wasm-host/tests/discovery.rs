@@ -34,6 +34,7 @@ fn registry(name: &str) -> Registry {
         permissions: vec![Permission::Storage, Permission::Clock],
         wasm_sha256: String::new(),
         limits: None,
+        network: None,
     };
     let pkg = pack(&author(), &m, &discovery_wasm()).unwrap();
     reg.install(&pkg, &[Permission::Storage, Permission::Clock])

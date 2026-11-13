@@ -10,6 +10,7 @@
 
 pub mod backup;
 pub mod lifecycle;
+pub mod net;
 pub mod storage;
 /// Catálogo de UI declarativa (definido em `superapp-ui`, compartilhado com o SDK).
 pub use superapp_ui as ui;
@@ -32,7 +33,8 @@ wasmtime::component::bindgen!({
     exports: { default: async },
 });
 
-use superapp::host::{clock, log, storage as wit_storage};
+use net::{NetAccess, NetBackend, NetError, NetPolicy};
+use superapp::host::{clock, http, log, storage as wit_storage};
 
 /// Interface do host que o mini-app pode importar (cada uma é uma permissão).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -40,6 +42,7 @@ pub enum Interface {
     Log,
     Storage,
     Clock,
+    Http,
 }
 
 impl Interface {
@@ -48,6 +51,7 @@ impl Interface {
             Interface::Log => "superapp:host/log",
             Interface::Storage => "superapp:host/storage",
             Interface::Clock => "superapp:host/clock",
+            Interface::Http => "superapp:host/http",
         }
     }
 }
@@ -65,6 +69,7 @@ impl Grants {
             .with(Interface::Log)
             .with(Interface::Storage)
             .with(Interface::Clock)
+            .with(Interface::Http)
     }
     #[must_use]
     pub fn with(mut self, i: Interface) -> Self {
@@ -85,6 +90,7 @@ impl Grants {
                 Permission::Log => Interface::Log,
                 Permission::Storage => Interface::Storage,
                 Permission::Clock => Interface::Clock,
+                Permission::Http => Interface::Http,
             })
         })
     }
@@ -196,6 +202,9 @@ struct State {
     storage: Arc<dyn Storage>,
     audit: Arc<dyn AuditSink>,
     logs: Vec<String>,
+    /// Rede aprovada (só com a permissão `http`) e chamadas já feitas nesta execução.
+    net: Option<NetAccess>,
+    net_calls: u32,
 }
 
 impl State {
@@ -255,10 +264,82 @@ impl clock::Host for State {
     }
 }
 
+impl http::Host for State {
+    async fn fetch(&mut self, req: http::Request) -> Result<http::Response, String> {
+        let method: String = req.method.chars().take(6).collect();
+        let host = net::audit_host(&req.url);
+        let sent = req.body.len();
+        let result = self.net_fetch(req).await;
+        let (decision, command) = match &result {
+            Ok(r) => (
+                Decision::Allowed,
+                format!(
+                    "http.fetch {method} {host} -> {} sent={sent} recv={}",
+                    r.status,
+                    r.body.len()
+                ),
+            ),
+            Err(e) if e.is_rule() => (
+                Decision::DeniedByNetworkRule,
+                format!("http.fetch {method} {host} -> negado: {e}"),
+            ),
+            Err(e) => (
+                Decision::Allowed,
+                format!("http.fetch {method} {host} -> falha: {e}"),
+            ),
+        };
+        self.audit.record(AuditEvent {
+            window: format!("app:{}", self.app),
+            command: command
+                .chars()
+                .filter(|c| !c.is_control())
+                .take(300)
+                .collect(),
+            decision,
+        });
+        result
+            .map(|r| http::Response {
+                status: r.status,
+                content_type: r.content_type,
+                body: r.body,
+            })
+            .map_err(|e| e.to_string())
+    }
+}
+
+impl State {
+    /// Limites de chamadas, relógio da chamada e política; o transporte é do backend.
+    async fn net_fetch(&mut self, req: http::Request) -> Result<net::HttpResponse, NetError> {
+        let Some(access) = self.net.clone() else {
+            return Err(NetError::NoBackend);
+        };
+        if self.net_calls >= net::MAX_CALLS_PER_RUN {
+            return Err(NetError::CallsPerRun);
+        }
+        self.net_calls += 1;
+        if !access.rate.allow() {
+            return Err(NetError::CallsPerMinute);
+        }
+        let request = net::HttpRequest {
+            method: req.method,
+            url: req.url,
+            headers: req.headers,
+            body: req.body,
+        };
+        tokio::time::timeout(
+            net::CALL_TIMEOUT,
+            net::fetch(&access.policy, access.backend.as_ref(), request),
+        )
+        .await
+        .map_err(|_| NetError::Timeout)?
+    }
+}
+
 /// Runtime compartilhado: uma engine com fuel obrigatório e o destino da auditoria.
 pub struct Runtime {
     engine: Engine,
     audit: Arc<dyn AuditSink>,
+    net_backend: Option<Arc<dyn NetBackend>>,
 }
 
 impl Runtime {
@@ -266,7 +347,17 @@ impl Runtime {
         let mut cfg = Config::new();
         cfg.consume_fuel(true); // obrigatório: sem isso um laço do guest nunca é interrompido
         let engine = Engine::new(&cfg).map_err(|e| WasmError::Load(e.to_string()))?;
-        Ok(Self { engine, audit })
+        Ok(Self {
+            engine,
+            audit,
+            net_backend: None,
+        })
+    }
+
+    /// Transporte de rede para mini-apps com `http` (sem ele, as chamadas falham com erro claro).
+    /// Vale para os apps carregados depois desta chamada.
+    pub fn set_net_backend(&mut self, backend: Arc<dyn NetBackend>) {
+        self.net_backend = Some(backend);
     }
 
     /// Carrega um pacote já verificado. `approved` é o que o usuário consentiu e nunca pode
@@ -284,7 +375,20 @@ impl Runtime {
                 "concessão maior que a pedida no manifesto".into(),
             ));
         }
-        self.load(&pkg.manifest.id, &pkg.wasm, approved, storage)
+        let net = if approved.has(Interface::Http) {
+            let hosts = pkg
+                .manifest
+                .network
+                .as_ref()
+                .map(|n| n.hosts.clone())
+                .unwrap_or_default();
+            self.net_backend
+                .as_ref()
+                .map(|b| NetAccess::new(NetPolicy::new(&hosts), b.clone()))
+        } else {
+            None
+        };
+        self.load_with_net(&pkg.manifest.id, &pkg.wasm, approved, storage, net)
     }
 
     /// Compila o componente e liga só as interfaces concedidas. Falha se o componente
@@ -295,6 +399,18 @@ impl Runtime {
         wasm: &[u8],
         grants: &Grants,
         storage: Arc<dyn Storage>,
+    ) -> Result<MiniApp, WasmError> {
+        self.load_with_net(app_id, wasm, grants, storage, None)
+    }
+
+    /// Como [`Runtime::load`], com acesso à rede (usado quando `http` foi aprovada).
+    pub fn load_with_net(
+        &self,
+        app_id: &str,
+        wasm: &[u8],
+        grants: &Grants,
+        storage: Arc<dyn Storage>,
+        net: Option<NetAccess>,
     ) -> Result<MiniApp, WasmError> {
         if !storage::valid_app_id(app_id) {
             return Err(WasmError::Load("id de mini-app inválido".into()));
@@ -314,9 +430,17 @@ impl Runtime {
         if grants.has(Interface::Clock) {
             clock::add_to_linker::<State, HasSelf<State>>(&mut linker, |s| s).map_err(load_err)?;
         }
+        if grants.has(Interface::Http) {
+            http::add_to_linker::<State, HasSelf<State>>(&mut linker, |s| s).map_err(load_err)?;
+        }
         let instance_pre = linker.instantiate_pre(&component).map_err(|e| {
             let text = format!("{e:#}");
-            for i in [Interface::Log, Interface::Storage, Interface::Clock] {
+            for i in [
+                Interface::Log,
+                Interface::Storage,
+                Interface::Clock,
+                Interface::Http,
+            ] {
                 if !grants.has(i) && text.contains(i.wit_name()) {
                     self.audit.record(AuditEvent {
                         window: format!("app:{app_id}"),
@@ -335,6 +459,7 @@ impl Runtime {
             id: app_id.to_owned(),
             pre,
             storage,
+            net,
         })
     }
 }
@@ -351,6 +476,7 @@ pub struct MiniApp {
     id: String,
     pre: MiniappPre<State>,
     storage: Arc<dyn Storage>,
+    net: Option<NetAccess>,
 }
 
 impl MiniApp {
@@ -371,6 +497,8 @@ impl MiniApp {
             storage: self.storage.clone(),
             audit: self.audit.clone(),
             logs: Vec::new(),
+            net: self.net.clone(),
+            net_calls: 0,
         };
         let mut store = Store::new(&self.engine, state);
         store.limiter(|s| &mut s.limiter);

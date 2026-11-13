@@ -7,6 +7,7 @@
     log: "Registrar mensagens de diagnóstico",
     storage: "Guardar dados próprios neste computador (até 4 MiB)",
     clock: "Ler a data e a hora atuais",
+    http: "Acessar a internet, somente os domínios listados abaixo",
   };
 
   const $ = (id) => document.getElementById(id);
@@ -179,6 +180,17 @@
         const lab = el("label", ` ${PERMS[perm] || perm}${p.added.includes(perm) && p.is_update ? " (nova)" : ""}`);
         lab.htmlFor = cb.id;
         li.append(cb, lab);
+        if (perm === "http") {
+          // Os domínios aprovados e o que isso implica: o app pode enviar a eles o que lê.
+          li.append(
+            el("p", `Domínios: ${(p.hosts || []).join(", ") || "(nenhum)"}`, "meta"),
+            el(
+              "p",
+              "O app pode enviar a esses domínios qualquer dado que ele lê, inclusive os que guarda aqui. Só marque se confia no autor.",
+              "new-perms",
+            ),
+          );
+        }
         ul.append(li);
         boxes.push([perm, cb]);
       }

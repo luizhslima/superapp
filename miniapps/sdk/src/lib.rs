@@ -153,6 +153,51 @@ pub mod ui {
     }
 }
 
+/// Rede mediada pelo host (permissão `http` + `network.hosts` no manifesto; ADR-011).
+///
+/// Só `https`, só os domínios aprovados, sem IPs internos; até 4 chamadas por execução, corpo
+/// enviado até 64 KiB e resposta até 1 MiB (texto, JSON ou XML). Cabeçalhos: só `accept` e
+/// `content-type`. Erros voltam como texto legível.
+pub mod http {
+    use crate::bindings::superapp::host::http as raw;
+
+    pub struct Response {
+        pub status: u16,
+        pub content_type: String,
+        pub body: Vec<u8>,
+    }
+
+    pub fn fetch(
+        method: &str,
+        url: &str,
+        headers: &[(&str, &str)],
+        body: &[u8],
+    ) -> Result<Response, String> {
+        let req = raw::Request {
+            method: method.into(),
+            url: url.into(),
+            headers: headers
+                .iter()
+                .map(|(k, v)| ((*k).into(), (*v).into()))
+                .collect(),
+            body: body.to_vec(),
+        };
+        raw::fetch(&req).map(|r| Response {
+            status: r.status,
+            content_type: r.content_type,
+            body: r.body,
+        })
+    }
+
+    pub fn get(url: &str) -> Result<Response, String> {
+        fetch("GET", url, &[], &[])
+    }
+
+    pub fn post(url: &str, content_type: &str, body: &[u8]) -> Result<Response, String> {
+        fetch("POST", url, &[("content-type", content_type)], body)
+    }
+}
+
 /// Armazenamento próprio do mini-app (permissão `storage`; quota de 4 MiB no host).
 pub mod storage {
     use crate::bindings::superapp::host::storage as raw;

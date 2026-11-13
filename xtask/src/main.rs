@@ -143,6 +143,7 @@ fn prepare_smoke_package() -> Option<(std::path::PathBuf, std::path::PathBuf)> {
         permissions: vec![superapp_package::Permission::Storage],
         wasm_sha256: String::new(),
         limits: None,
+        network: None,
     };
     let bytes = superapp_package::pack(&key, &manifest, &wasm).ok()?;
     let sapp = base.join("clicker.sapp");

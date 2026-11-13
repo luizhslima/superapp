@@ -21,10 +21,29 @@ interface clock {
   now-ms: func() -> u64;
 }
 
+interface http {
+  /// Pedido HTTPS. Só `GET`/`POST`; cabeçalhos só `accept` e `content-type`.
+  record request {
+    method: string,
+    url: string,
+    headers: list<tuple<string, string>>,
+    body: list<u8>,
+  }
+  record response {
+    status: u16,
+    content-type: string,
+    body: list<u8>,
+  }
+  /// Requisição feita **pelo host** (ADR-011): só para os domínios aprovados no manifesto, sem
+  /// IPs internos, com limites de tamanho, tempo e número de chamadas. Erro = texto legível.
+  fetch: func(req: request) -> result<response, string>;
+}
+
 world miniapp {
   import log;
   import storage;
   import clock;
+  import http;
   /// Ponto de entrada único do v0: texto entra, texto sai. Erros do app vão em `err`.
   export run: func(input: string) -> result<string, string>;
 }

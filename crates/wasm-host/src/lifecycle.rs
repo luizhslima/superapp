@@ -47,6 +47,8 @@ pub struct Installed {
     pub version: String,
     pub requested: Vec<Permission>,
     pub approved: Vec<Permission>,
+    /// Domínios que o app pode alcançar (vazio sem `http`).
+    pub hosts: Vec<String>,
     pub enabled: bool,
     /// Preenchido quando o pacote em disco não passa mais na verificação.
     pub problem: Option<String>,
@@ -59,6 +61,8 @@ pub struct Preview {
     pub name: String,
     pub version: String,
     pub requested: Vec<Permission>,
+    /// Domínios de `network.hosts` que o consentimento precisa mostrar.
+    pub hosts: Vec<String>,
     pub is_update: bool,
     pub installed_version: Option<String>,
     pub previously_approved: Vec<Permission>,
@@ -111,6 +115,13 @@ fn version_tuple(v: &str) -> (u32, u32, u32) {
     )
 }
 
+fn hosts_of(m: &superapp_package::Manifest) -> Vec<String> {
+    m.network
+        .as_ref()
+        .map(|n| n.hosts.clone())
+        .unwrap_or_default()
+}
+
 fn normalize(perms: &[Permission]) -> Vec<Permission> {
     let mut v = perms.to_vec();
     v.sort();
@@ -147,6 +158,11 @@ impl Registry {
         Ok(reg)
     }
 
+    /// Liga o transporte de rede real (apps com `http`); chamar antes de abrir/usar apps.
+    pub fn set_net_backend(&mut self, backend: Arc<dyn crate::net::NetBackend>) {
+        self.runtime.set_net_backend(backend);
+    }
+
     fn app_dir(&self, id: &str) -> PathBuf {
         self.root.join("apps").join(id)
     }
@@ -179,6 +195,7 @@ impl Registry {
                     version: pkg.manifest.version.clone(),
                     requested: normalize(&pkg.manifest.permissions),
                     approved,
+                    hosts: hosts_of(&pkg.manifest),
                     enabled,
                     problem: None,
                 }
@@ -189,6 +206,7 @@ impl Registry {
                 version: "?".into(),
                 requested: Vec::new(),
                 approved: Vec::new(),
+                hosts: Vec::new(),
                 enabled: false,
                 problem: Some(e.to_string()),
             },
@@ -224,16 +242,23 @@ impl Registry {
             .filter(|c| c.problem.is_none())
             .map(|c| c.approved.clone())
             .unwrap_or_default();
+        let hosts = hosts_of(&pkg.manifest);
+        // Uma atualização que amplia os domínios conta como permissão nova (`http` volta a
+        // pedir consentimento), mesmo que `http` já estivesse aprovada.
+        let hosts_grew = current
+            .as_ref()
+            .is_some_and(|c| hosts.iter().any(|h| !c.hosts.contains(h)));
         let added = requested
             .iter()
             .copied()
-            .filter(|p| !previously.contains(p))
+            .filter(|p| !previously.contains(p) || (*p == Permission::Http && hosts_grew))
             .collect();
         Ok(Preview {
             id: pkg.manifest.id.clone(),
             name: pkg.manifest.name.clone(),
             version: pkg.manifest.version.clone(),
             requested,
+            hosts,
             is_update: current.is_some(),
             installed_version: current.map(|c| c.version),
             previously_approved: previously,
@@ -273,6 +298,7 @@ impl Registry {
             version: pkg.manifest.version.clone(),
             requested,
             approved,
+            hosts: hosts_of(&pkg.manifest),
             enabled: true,
             problem: None,
         };

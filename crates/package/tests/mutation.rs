@@ -37,6 +37,7 @@ fn valid_package() -> Vec<u8> {
         permissions: vec![Permission::Log, Permission::Storage],
         wasm_sha256: String::new(),
         limits: None,
+        network: None,
     };
     let wasm: Vec<u8> = (0..400u32).map(|i| (i * 7 % 251) as u8).collect();
     pack(&key(), &m, &wasm).unwrap()

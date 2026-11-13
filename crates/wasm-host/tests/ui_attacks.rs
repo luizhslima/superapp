@@ -48,6 +48,7 @@ fn install_attacker(root: &Path, limits: Option<RequestedLimits>) -> Registry {
         permissions: perms.clone(),
         wasm_sha256: String::new(),
         limits,
+        network: None,
     };
     reg.install(&pack(&author(), &m, &wasm).unwrap(), &perms)
         .unwrap();
@@ -150,6 +151,7 @@ async fn a_misbehaving_app_does_not_affect_another_installed_app() {
         permissions: vec![Permission::Storage],
         wasm_sha256: String::new(),
         limits: None,
+        network: None,
     };
     reg.install(
         &pack(&author(), &m, &clicker_wasm()).unwrap(),

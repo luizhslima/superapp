@@ -60,6 +60,8 @@ Todos rodam em `cargo test` (e portanto na CI de Windows, Linux e macOS). "Conti
 | Um app malicioso afetando outro | `ui_attacks::a_misbehaving_app...` | Sem efeito (instâncias e dados separados) |
 | Vazamento de estado entre execuções | `ui_attacks::repeated_runs...` | Instância nova por execução |
 | Rede por qualquer caminho (inclusive `fetch` embutido num interpretador) | `js_guest` + ausência de `wasi:http` no linker | O host nunca liga `wasi:http`/sockets: um componente que os importe nem carrega |
+| Rede **mediada** ([ADR-011](04-adrs/ADR-011-miniapp-network.md)): domínio fora da lista, `http://`, IP literal, porta ≠ 443, usuário na URL, IP interno/loopback/metadata após o DNS, redirecionamento para fora, `Authorization`/`Cookie`, resposta > 1 MiB ou binária, 5ª chamada, taxa por minuto | `net` (9 unitários), `net.rs` (7 de ponta a ponta), `netbackend` (5) | Todas recusadas **antes** de sair qualquer byte, auditadas como `DeniedByNetworkRule`; conexão fixada no IP validado; app sem aprovação nem carrega |
+| Exfiltração por mini-app com `storage` + `http` (limitação inerente) | consentimento + auditoria | O consentimento lista os domínios e avisa; só vão a esses domínios; cada chamada fica no log. Recomendação: app com dados pessoais não pede `http` |
 | Mini-app sem capability no shell (janela `untrusted`) chamando `apps.*` | smoke (`apps: janela sem capability...`) | `permission_denied` |
 
 **Limites conhecidos (não contidos nesta fase):** canais laterais de tempo (o relógio WASI existe para o guest); o detector de segredos pega só padrões conhecidos; sem revogação central de chaves nem auto-update (Fase 5).
