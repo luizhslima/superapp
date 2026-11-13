@@ -5,7 +5,7 @@
 //! nova): registros em chaves próprias (`t1`, `h2`, `i3`), um índice por coleção (`idx:t`...),
 //! `meta` (versão do esquema e contador de ids) e `ui` (tela atual).
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 use superapp_sdk::{export_app, now_ms, serde_json, storage, ui, App, Event, Node};
 
 const SCHEMA: u32 = 1;
@@ -15,6 +15,8 @@ const PAGINA: usize = 15;
 const MAX_H: usize = 20;
 const MAX_T: usize = 5;
 const MAX_I: usize = 200;
+const MAX_V: usize = 500;
+const MAX_D: usize = 100;
 const MSG_RO: &str = "Dados de uma versão mais nova do app: somente leitura.";
 
 // ---------------------------------------------------------------- modelo
@@ -88,6 +90,8 @@ enum Col {
     T,
     H,
     I,
+    V,
+    D,
 }
 
 impl Col {
@@ -96,6 +100,8 @@ impl Col {
             Col::T => 't',
             Col::H => 'h',
             Col::I => 'i',
+            Col::V => 'v',
+            Col::D => 'd',
         }
     }
     fn max(self) -> usize {
@@ -103,6 +109,8 @@ impl Col {
             Col::T => MAX_T,
             Col::H => MAX_H,
             Col::I => MAX_I,
+            Col::V => MAX_V,
+            Col::D => MAX_D,
         }
     }
     fn nome(self) -> &'static str {
@@ -110,6 +118,8 @@ impl Col {
             Col::T => "territórios",
             Col::H => "hipóteses",
             Col::I => "entrevistas",
+            Col::V => "evidências",
+            Col::D => "decisões",
         }
     }
     fn de_id(id: &str) -> Option<Col> {
@@ -117,6 +127,8 @@ impl Col {
             't' => Some(Col::T),
             'h' => Some(Col::H),
             'i' => Some(Col::I),
+            'v' => Some(Col::V),
+            'd' => Some(Col::D),
             _ => None,
         }
     }
@@ -249,16 +261,17 @@ fn apagar(c: Col, id: &str) -> Result<(), String> {
 /// Reparo da abertura: tira do índice ids sem registro e reinclui órfãos (1..=seq).
 fn reparar() -> Result<(), String> {
     let meta: Meta = ler("meta").unwrap_or_default();
-    for c in [Col::T, Col::H, Col::I] {
+    for c in [Col::T, Col::H, Col::I, Col::V, Col::D] {
         let antes = indice(c);
         let mut idx: Vec<String> = antes
             .iter()
             .filter(|id| storage::get(id).is_some())
             .cloned()
             .collect();
+        let conhecidos: HashSet<String> = idx.iter().cloned().collect();
         for n in 1..=meta.seq {
             let id = format!("{}{}", c.p(), n);
-            if !idx.contains(&id) && storage::get(&id).is_some() && idx.len() < c.max() {
+            if !conhecidos.contains(&id) && storage::get(&id).is_some() && idx.len() < c.max() {
                 idx.push(id);
             }
         }
@@ -276,6 +289,8 @@ enum Rascunho {
     T(Territorio),
     H(Hipotese),
     I(Entrevista),
+    V(Evidencia),
+    D(Decisao),
 }
 
 struct Ctx {
@@ -346,17 +361,22 @@ fn lista_da(tela: &str) -> &'static str {
     match tela {
         "form-t" => "territorios",
         "form-h" => "hipoteses",
+        "form-v" => "evidencias",
+        "form-d" => "decisoes",
         _ => "entrevistas",
     }
 }
 
 fn clique(ui: &mut Ui, ctx: &mut Ctx, id: &str, values: &Valores) {
     match id {
-        "nav-t" | "nav-h" | "nav-i" | "nav-r" => {
+        "nav-t" | "nav-h" | "nav-i" | "nav-v" | "nav-d" | "nav-p" | "nav-r" => {
             ui.tela = match id {
                 "nav-t" => "territorios",
                 "nav-h" => "hipoteses",
                 "nav-i" => "entrevistas",
+                "nav-v" => "evidencias",
+                "nav-d" => "decisoes",
+                "nav-p" => "painel",
                 _ => "roteiro",
             }
             .into();
@@ -372,6 +392,8 @@ fn clique(ui: &mut Ui, ctx: &mut Ctx, id: &str, values: &Valores) {
                 ui.tela = match ui.tela.as_str() {
                     "territorios" => "form-t",
                     "hipoteses" => "form-h",
+                    "evidencias" => "form-v",
+                    "decisoes" => "form-d",
                     _ => "form-i",
                 }
                 .into();
@@ -391,6 +413,8 @@ fn clique(ui: &mut Ui, ctx: &mut Ctx, id: &str, values: &Valores) {
                         Col::T => "form-t",
                         Col::H => "form-h",
                         Col::I => "form-i",
+                        Col::V => "form-v",
+                        Col::D => "form-d",
                     }
                     .into();
                     ui.sel = alvo.into();
@@ -414,6 +438,8 @@ impl Ui {
             "confirma" => match Col::de_id(&self.sel) {
                 Some(Col::T) => "form-t",
                 Some(Col::H) => "form-h",
+                Some(Col::V) => "form-v",
+                Some(Col::D) => "form-d",
                 _ => "form-i",
             }
             .into(),
@@ -477,7 +503,9 @@ fn salvar(ui: &mut Ui, ctx: &mut Ctx, values: &Valores) {
                 r
             }
         }
-        _ => {
+        "form-v" => salvar_evidencia(&ui.sel, ctx, values, novo, agora),
+        "form-d" => salvar_decisao(&ui.sel, ctx, values, novo, agora),
+        "form-i" => {
             let em = if novo {
                 agora
             } else {
@@ -502,6 +530,7 @@ fn salvar(ui: &mut Ui, ctx: &mut Ctx, values: &Valores) {
                 r
             }
         }
+        _ => Err("Nada para salvar nesta tela.".into()),
     };
     match resultado {
         Ok(()) => {
@@ -530,6 +559,9 @@ fn remover(ui: &mut Ui, ctx: &mut Ctx) {
                 apagar(Col::T, &id)
             }
         }
+        Col::H if hipotese_tem_evidencia(&id) => {
+            Err("Há evidências ligadas a esta hipótese: remova ou mova antes.".into())
+        }
         Col::H => {
             // Desliga a hipótese das entrevistas (nunca apaga entrevista em cascata).
             let mut r = Ok(());
@@ -543,7 +575,9 @@ fn remover(ui: &mut Ui, ctx: &mut Ctx) {
             }
             r.and_then(|_| apagar(Col::H, &id))
         }
-        Col::I => apagar(Col::I, &id),
+        Col::I => remover_entrevista(&id),
+        Col::V => apagar(Col::V, &id),
+        Col::D => apagar(Col::D, &id),
     };
     if let Err(e) = r {
         ctx.aviso = Some(e);
@@ -552,6 +586,8 @@ fn remover(ui: &mut Ui, ctx: &mut Ctx) {
         Col::T => "territorios",
         Col::H => "hipoteses",
         Col::I => "entrevistas",
+        Col::V => "evidencias",
+        Col::D => "decisoes",
     }
     .into();
     ui.sel.clear();
@@ -560,11 +596,18 @@ fn remover(ui: &mut Ui, ctx: &mut Ctx) {
 // ---------------------------------------------------------------- telas
 
 fn nav() -> Node {
-    ui::row(vec![
-        ui::button("nav-t", "Territórios"),
-        ui::button("nav-h", "Hipóteses"),
-        ui::button("nav-i", "Entrevistas"),
-        ui::button("nav-r", "Roteiro"),
+    ui::stack(vec![
+        ui::row(vec![
+            ui::button("nav-t", "Territórios"),
+            ui::button("nav-h", "Hipóteses"),
+            ui::button("nav-i", "Entrevistas"),
+            ui::button("nav-v", "Evidências"),
+        ]),
+        ui::row(vec![
+            ui::button("nav-d", "Decisões"),
+            ui::button("nav-p", "Painel"),
+            ui::button("nav-r", "Roteiro"),
+        ]),
     ])
 }
 
@@ -886,7 +929,9 @@ fn tela_confirma(sel: &str) -> Vec<Node> {
     let que = match Col::de_id(sel) {
         Some(Col::T) => "o território",
         Some(Col::H) => "a hipótese (as entrevistas continuam; só perdem a ligação)",
-        _ => "a entrevista e a sua ficha",
+        Some(Col::V) => "a evidência",
+        Some(Col::D) => "a decisão",
+        _ => "a entrevista, a sua ficha e as evidências que a citam como fonte",
     };
     vec![
         ui::heading("Remover?"),
@@ -910,6 +955,11 @@ fn tela(u: &Ui, ctx: &Ctx) -> Node {
         "hipoteses" => tela_hipoteses(u),
         "entrevistas" => tela_entrevistas(u),
         "roteiro" => tela_roteiro(),
+        "evidencias" => tela_evidencias(u),
+        "decisoes" => tela_decisoes(u),
+        "painel" => tela_painel(),
+        "form-v" => ficha_evidencia(&u.sel, &ctx.rascunho),
+        "form-d" => ficha_decisao(&u.sel, &ctx.rascunho),
         "form-t" => ficha_territorio(&u.sel, &ctx.rascunho),
         "form-h" => ficha_hipotese(&u.sel, &ctx.rascunho),
         "form-i" => ficha_entrevista(&u.sel, &ctx.rascunho),
@@ -917,6 +967,552 @@ fn tela(u: &Ui, ctx: &Ctx) -> Node {
         _ => tela_territorios(u),
     });
     ui::stack(f)
+}
+
+// ---------------------------------------------------------------- D3: evidências, decisões, painel
+
+#[derive(Serialize, Deserialize, Default, Clone)]
+#[serde(default)]
+struct Evidencia {
+    h: String,
+    fonte: String,
+    resumo: String,
+    forca: u8,
+    contra: bool,
+    empresa: String,
+    papel: String,
+    em: u64,
+}
+
+#[derive(Serialize, Deserialize, Default, Clone)]
+#[serde(default)]
+struct Decisao {
+    t: String,
+    h: Vec<String>,
+    escolha: String,
+    porque: String,
+    proximo: String,
+    em: u64,
+}
+
+/// Escala de força da evidência (do doc de pesquisa); o número inicial é o valor guardado.
+const FORCAS: &[&str] = &[
+    "1 · Reclamação pública",
+    "2 · Entrevista detalhada",
+    "3 · Observação autorizada",
+    "4 · Tentativa anterior de solução",
+    "5 · Acesso ao responsável",
+    "6 · Piloto com escopo",
+    "7 · Pagamento",
+];
+const ESCOLHAS: Tabela = &[
+    ("avancar", "Avançar"),
+    ("restringir", "Restringir o segmento"),
+    ("reformular", "Reformular"),
+    ("abandonar", "Abandonar"),
+];
+
+fn forca_de(rot: &str) -> u8 {
+    rot.chars()
+        .next()
+        .and_then(|c| c.to_digit(10))
+        .filter(|d| (1..=7).contains(d))
+        .map(|d| d as u8)
+        .unwrap_or(1)
+}
+
+fn forca_rotulo(f: u8) -> &'static str {
+    FORCAS[(f.clamp(1, 7) - 1) as usize]
+}
+
+fn primeiro_token(s: &str) -> String {
+    s.split(' ').next().unwrap_or("").to_string()
+}
+
+fn evidencia_de(values: &Valores, em: u64) -> Evidencia {
+    let fonte = linha(v(values, "f-fonte"), 300);
+    let mut e = Evidencia {
+        h: primeiro_token(v(values, "f-h")),
+        fonte: fonte.clone(),
+        resumo: longo(v(values, "f-resumo"), 500),
+        forca: forca_de(v(values, "f-forca")),
+        contra: v(values, "f-contra") == "true",
+        empresa: linha(v(values, "f-emp"), 80),
+        papel: String::new(),
+        em,
+    };
+    // Fonte = id de uma entrevista: herda a empresa (se não informada) e o papel.
+    if Col::de_id(&fonte) == Some(Col::I) {
+        if let Some(i) = ler::<Entrevista>(&fonte) {
+            if e.empresa.is_empty() {
+                e.empresa = i.empresa.clone();
+            }
+            e.papel = i.papel.clone();
+        }
+    }
+    e
+}
+
+fn decisao_de(values: &Valores, em: u64) -> Decisao {
+    let validas = indice(Col::H);
+    let h = values
+        .iter()
+        .filter(|(_, val)| val.as_str() == "true")
+        .filter_map(|(k, _)| k.strip_prefix("hk-"))
+        .filter(|id| validas.iter().any(|x| x == id))
+        .map(str::to_string)
+        .collect();
+    Decisao {
+        t: primeiro_token(v(values, "f-t")),
+        h,
+        escolha: codigo(ESCOLHAS, v(values, "f-esc")).to_string(),
+        porque: longo(v(values, "f-porque"), 1000),
+        proximo: longo(v(values, "f-prox"), 500),
+        em,
+    }
+}
+
+fn salvar_evidencia(
+    sel: &str,
+    ctx: &mut Ctx,
+    values: &Valores,
+    novo: bool,
+    agora: u64,
+) -> Result<(), String> {
+    let em = if novo {
+        agora
+    } else {
+        ler::<Evidencia>(sel).map(|e| e.em).unwrap_or(agora)
+    };
+    let e = evidencia_de(values, em);
+    let r = if ler::<Hipotese>(&e.h).is_none() {
+        Err("Escolha uma hipótese existente.".to_string())
+    } else if e.fonte.is_empty() {
+        Err("Informe a fonte (id da entrevista, ex.: i3, ou texto/URL).".to_string())
+    } else if e.resumo.is_empty() {
+        Err("Resuma o que a evidência mostra.".to_string())
+    } else if novo {
+        criar(Col::V, &e).map(|_| ())
+    } else {
+        gravar(sel, &e)
+    };
+    if r.is_err() {
+        ctx.rascunho = Rascunho::V(e);
+    }
+    r
+}
+
+fn salvar_decisao(
+    sel: &str,
+    ctx: &mut Ctx,
+    values: &Valores,
+    novo: bool,
+    agora: u64,
+) -> Result<(), String> {
+    let em = if novo {
+        agora
+    } else {
+        ler::<Decisao>(sel).map(|d| d.em).unwrap_or(agora)
+    };
+    let d = decisao_de(values, em);
+    let r = if ler::<Territorio>(&d.t).is_none() {
+        Err("Escolha um território existente.".to_string())
+    } else if d.porque.is_empty() {
+        Err("Explique o porquê da decisão.".to_string())
+    } else if novo {
+        criar(Col::D, &d).map(|_| ())
+    } else {
+        gravar(sel, &d)
+    };
+    if r.is_err() {
+        ctx.rascunho = Rascunho::D(d);
+    }
+    r
+}
+
+fn hipotese_tem_evidencia(h: &str) -> bool {
+    indice(Col::V)
+        .iter()
+        .any(|id| ler::<Evidencia>(id).is_some_and(|e| e.h == h))
+}
+
+/// Remove a entrevista e as evidências que a citam como fonte (pedido de exclusão: nada fica).
+fn remover_entrevista(id: &str) -> Result<(), String> {
+    for v_id in indice(Col::V) {
+        if ler::<Evidencia>(&v_id).is_some_and(|e| e.fonte == id) {
+            apagar(Col::V, &v_id)?;
+        }
+    }
+    apagar(Col::I, id)
+}
+
+fn tela_evidencias(u: &Ui) -> Vec<Node> {
+    let mut f = vec![ui::text(
+        "Evidência: um fato ligado a uma hipótese, com fonte e força. Conta empresas, não falas.",
+    )];
+    f.extend(lista(
+        Col::V,
+        u,
+        |id| {
+            let e: Evidencia = ler(id)?;
+            Some(corta(
+                &format!(
+                    "{id} · {} · F{} · {} · {} · {}",
+                    e.h,
+                    e.forca,
+                    if e.contra { "contra" } else { "a favor" },
+                    if e.empresa.is_empty() {
+                        "sem empresa"
+                    } else {
+                        &e.empresa
+                    },
+                    corta(&e.resumo, 70)
+                ),
+                200,
+            ))
+        },
+        "Nenhuma evidência ainda.",
+        "Nova evidência",
+    ));
+    f
+}
+
+fn tela_decisoes(u: &Ui) -> Vec<Node> {
+    let mut f = vec![ui::text(
+        "Decisão: avançar, restringir, reformular ou abandonar, com a justificativa e o próximo experimento.",
+    )];
+    f.extend(lista(
+        Col::D,
+        u,
+        |id| {
+            let d: Decisao = ler(id)?;
+            Some(corta(
+                &format!(
+                    "{id} · {} · {} · {}",
+                    d.t,
+                    rotulo(ESCOLHAS, &d.escolha),
+                    corta(&d.porque, 90)
+                ),
+                200,
+            ))
+        },
+        "Nenhuma decisão ainda.",
+        "Nova decisão",
+    ));
+    f
+}
+
+fn opcoes_territorio() -> Vec<(String, String)> {
+    indice(Col::T)
+        .into_iter()
+        .filter_map(|id| {
+            let t: Territorio = ler(&id)?;
+            Some((id.clone(), format!("{id} · {}", corta(&t.nome, 60))))
+        })
+        .collect()
+}
+
+fn ficha_evidencia(sel: &str, r: &Rascunho) -> Vec<Node> {
+    let e = match r {
+        Rascunho::V(e) => e.clone(),
+        _ => ler(sel).unwrap_or_default(),
+    };
+    let hs: Vec<(String, String)> = indice(Col::H)
+        .into_iter()
+        .filter_map(|id| {
+            let h: Hipotese = ler(&id)?;
+            Some((id.clone(), format!("{id} · {}", corta(&h.texto, 60))))
+        })
+        .collect();
+    if hs.is_empty() {
+        return vec![
+            ui::text("Crie uma hipótese antes de registrar evidências."),
+            ui::button("cancelar", "Voltar"),
+        ];
+    }
+    let escolhida = hs
+        .iter()
+        .find(|(id, _)| *id == e.h)
+        .map(|(_, r)| r.clone())
+        .unwrap_or_else(|| hs[0].1.clone());
+    vec![
+        ui::heading(if sel.is_empty() {
+            "Nova evidência"
+        } else {
+            "Evidência"
+        }),
+        ui::select(
+            "f-h",
+            "Hipótese",
+            hs.iter().map(|(_, r)| r.clone()),
+            escolhida,
+        ),
+        ui::input(
+            "f-fonte",
+            "Fonte: id da entrevista (ex.: i3) ou texto/URL",
+            e.fonte,
+        ),
+        ui::textarea("f-resumo", "O que a evidência mostra (até 500)", e.resumo),
+        ui::select(
+            "f-forca",
+            "Força da evidência",
+            FORCAS.iter().copied(),
+            forca_rotulo(e.forca),
+        ),
+        ui::checkbox(
+            "f-contra",
+            "Evidência contrária (contradiz a hipótese)",
+            e.contra,
+        ),
+        ui::input(
+            "f-emp",
+            "Empresa (vem da entrevista, se a fonte for uma)",
+            e.empresa,
+        ),
+        botoes_ficha(),
+    ]
+}
+
+fn ficha_decisao(sel: &str, r: &Rascunho) -> Vec<Node> {
+    let d = match r {
+        Rascunho::D(d) => d.clone(),
+        _ => ler(sel).unwrap_or_default(),
+    };
+    let ts = opcoes_territorio();
+    if ts.is_empty() {
+        return vec![
+            ui::text("Crie um território antes de registrar decisões."),
+            ui::button("cancelar", "Voltar"),
+        ];
+    }
+    let escolhido = ts
+        .iter()
+        .find(|(id, _)| *id == d.t)
+        .map(|(_, r)| r.clone())
+        .unwrap_or_else(|| ts[0].1.clone());
+    let mut f = vec![
+        ui::heading(if sel.is_empty() {
+            "Nova decisão"
+        } else {
+            "Decisão"
+        }),
+        ui::select(
+            "f-t",
+            "Território",
+            ts.iter().map(|(_, r)| r.clone()),
+            escolhido,
+        ),
+        ui::select(
+            "f-esc",
+            "Decisão",
+            rotulos(ESCOLHAS),
+            rotulo(ESCOLHAS, &d.escolha),
+        ),
+        ui::textarea("f-porque", "Por quê (até 1000)", d.porque),
+        ui::textarea("f-prox", "Próximo experimento", d.proximo),
+    ];
+    let hs: Vec<(String, Hipotese)> = indice(Col::H)
+        .into_iter()
+        .filter_map(|id| Some((id.clone(), ler::<Hipotese>(&id)?)))
+        .collect();
+    if !hs.is_empty() {
+        f.push(ui::text("Hipóteses consideradas nesta decisão:"));
+        for (id, h) in hs {
+            f.push(ui::checkbox(
+                format!("hk-{id}"),
+                format!("{id} · {}", corta(&h.texto, 70)),
+                d.h.contains(&id),
+            ));
+        }
+    }
+    f.push(botoes_ficha());
+    f
+}
+
+// ---- painel (tudo calculado na hora; nada disso é gravado)
+
+/// Empresa normalizada: minúsculas, sem espaços sobrando.
+fn norm(s: &str) -> String {
+    s.split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .to_lowercase()
+}
+
+#[derive(Default)]
+struct Aval {
+    favor: usize,
+    contra: usize,
+    empresas: BTreeSet<String>,
+    papeis: BTreeSet<String>,
+    forca_favor: u8,
+    forca_contra: u8,
+    ultima_contra: u64,
+}
+
+fn avaliar(h: &str, evs: &[Evidencia]) -> Aval {
+    let mut a = Aval::default();
+    for e in evs.iter().filter(|e| e.h == h) {
+        if e.contra {
+            a.contra += 1;
+            a.forca_contra = a.forca_contra.max(e.forca);
+            a.ultima_contra = a.ultima_contra.max(e.em);
+        } else {
+            a.favor += 1;
+            a.forca_favor = a.forca_favor.max(e.forca);
+            if !norm(&e.empresa).is_empty() {
+                a.empresas.insert(norm(&e.empresa));
+            }
+            if !e.papel.is_empty() {
+                a.papeis.insert(e.papel.clone());
+            }
+        }
+    }
+    a
+}
+
+/// Há evidência contrária registrada e nenhuma decisão posterior a ela considerou a hipótese.
+fn contradicao_aberta(h: &str, a: &Aval, decs: &[Decisao]) -> bool {
+    a.contra > 0
+        && !decs
+            .iter()
+            .any(|d| d.em > a.ultima_contra && d.h.iter().any(|x| x == h))
+}
+
+fn marca(ok: bool) -> &'static str {
+    if ok {
+        "✓"
+    } else {
+        "✗"
+    }
+}
+
+fn tela_painel() -> Vec<Node> {
+    let ts: Vec<(String, Territorio)> = indice(Col::T)
+        .into_iter()
+        .filter_map(|id| Some((id.clone(), ler(&id)?)))
+        .collect();
+    let hs: Vec<(String, Hipotese)> = indice(Col::H)
+        .into_iter()
+        .filter_map(|id| Some((id.clone(), ler(&id)?)))
+        .collect();
+    let evs: Vec<Evidencia> = indice(Col::V).iter().filter_map(|id| ler(id)).collect();
+    let decs: Vec<(String, Decisao)> = indice(Col::D)
+        .into_iter()
+        .filter_map(|id| Some((id.clone(), ler(&id)?)))
+        .collect();
+    let decs_so: Vec<Decisao> = decs.iter().map(|(_, d)| d.clone()).collect();
+    let mut f = vec![ui::text(
+        "Painel calculado do que você registrou. Os critérios são sugestões para decidir, não uma regra: conte empresas independentes, não falas.",
+    )];
+    if ts.is_empty() {
+        f.push(ui::text("Sem territórios ainda."));
+        return f;
+    }
+    for (tid, t) in &ts {
+        f.push(ui::heading(corta(&format!("{tid} · {}", t.nome), 120)));
+        let hs_t: Vec<&(String, Hipotese)> = hs.iter().filter(|(_, h)| h.t == *tid).collect();
+        let mut empresas = BTreeSet::new();
+        let (mut max_f, mut aberta) = (0u8, false);
+        let mut linhas = Vec::new();
+        for (id, h) in &hs_t {
+            let a = avaliar(id, &evs);
+            let ab = contradicao_aberta(id, &a, &decs_so);
+            let mut l = format!(
+                "{id} [{}] {} · a favor: {} (empresas indep.: {}; papéis: {}; força máx.: {}) · contra: {} (força máx.: {})",
+                rotulo(STATUS, &h.status),
+                corta(&h.texto, 50),
+                a.favor,
+                a.empresas.len(),
+                a.papeis.len(),
+                a.forca_favor,
+                a.contra,
+                a.forca_contra
+            );
+            if ab {
+                l.push_str(" · ⚠ contradição aberta");
+            }
+            if h.contra.is_empty() {
+                l.push_str(" · ⚠ sem evidência contrária definida");
+            }
+            linhas.push(corta(&l, 200));
+            empresas.extend(a.empresas.iter().cloned());
+            max_f = max_f.max(a.forca_favor);
+            aberta |= ab;
+        }
+        if linhas.is_empty() {
+            f.push(ui::text("Sem hipóteses neste território."));
+        } else {
+            f.push(ui::list(linhas));
+        }
+        f.push(ui::list(vec![
+            format!(
+                "{} Segmento identificável (nome e processo preenchidos)",
+                marca(!t.nome.is_empty() && !t.processo.is_empty())
+            ),
+            format!(
+                "{} Episódios em empresas independentes: {} (sugestão: 3 ou mais)",
+                marca(empresas.len() >= 3),
+                empresas.len()
+            ),
+            format!(
+                "{} Alternativa atual compreendida",
+                marca(!t.alternativa.is_empty())
+            ),
+            format!(
+                "{} Mobilização para mudar (evidência de força 4+ a favor)",
+                marca(max_f >= 4)
+            ),
+            format!(
+                "{} Acesso a quem pode testar (evidência de força 5+)",
+                marca(max_f >= 5)
+            ),
+            format!(
+                "{} Contradições revisadas (sem contradição aberta)",
+                marca(!aberta)
+            ),
+            "• Consequências relevantes: confira nas fichas (campo Fato); o painel não mede isso."
+                .to_string(),
+        ]));
+        let ultima = decs
+            .iter()
+            .filter(|(_, d)| d.t == *tid)
+            .max_by_key(|(_, d)| d.em);
+        f.push(ui::text(match ultima {
+            Some((id, d)) => format!(
+                "Última decisão: {} ({id}): {}",
+                rotulo(ESCOLHAS, &d.escolha),
+                corta(&d.porque, 200)
+            ),
+            None => "Nenhuma decisão registrada para este território.".to_string(),
+        }));
+    }
+    // Pendências gerais.
+    let sem_evidencia: Vec<&str> = hs
+        .iter()
+        .filter(|(id, _)| !evs.iter().any(|e| e.h == *id))
+        .map(|(id, _)| id.as_str())
+        .collect();
+    let (mut sem_interp, mut sem_duvida) = (0, 0);
+    for id in indice(Col::I) {
+        if let Some(e) = ler::<Entrevista>(&id) {
+            sem_interp += usize::from(e.interpretacao.is_empty());
+            sem_duvida += usize::from(e.duvida.is_empty());
+        }
+    }
+    f.push(ui::heading("Pendências"));
+    f.push(ui::list(vec![
+        format!(
+            "Hipóteses sem nenhuma evidência: {}",
+            if sem_evidencia.is_empty() {
+                "nenhuma".to_string()
+            } else {
+                corta(&sem_evidencia.join(", "), 150)
+            }
+        ),
+        format!("Entrevistas sem interpretação: {sem_interp}; sem dúvidas anotadas: {sem_duvida}"),
+    ]));
+    f
 }
 
 // ---------------------------------------------------------------- entrada

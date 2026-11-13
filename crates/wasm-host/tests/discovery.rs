@@ -47,6 +47,8 @@ struct Vista {
     textos: Vec<String>,
     botoes: Vec<String>,
     itens: Vec<String>,
+    /// itens de `list` (painel, roteiro)
+    listas: Vec<String>,
     /// `input` e `textarea`: id -> valor
     campos: BTreeMap<String, String>,
     /// id -> (opções, escolhida)
@@ -61,6 +63,7 @@ fn vista(n: &Node) -> Vista {
                 children.iter().for_each(|c| walk(c, v))
             }
             Node::Text { text } => v.textos.push(text.clone()),
+            Node::List { items } => v.listas.extend(items.iter().cloned()),
             Node::Button { id, .. } => v.botoes.push(id.clone()),
             Node::ActionList { items } => v.itens.extend(items.iter().map(|i| i.text.clone())),
             Node::Input { id, value, .. } | Node::Textarea { id, value, .. } => {
@@ -354,4 +357,189 @@ async fn index_repair_restores_orphans_and_drops_dangling_ids() {
         .unwrap();
     let v = vista(&reg.dispatch(ID, &Event::Init).await.unwrap());
     assert_eq!(v.itens, vec!["t1 · A · fechamento", "t2 · B · fechamento"]);
+}
+
+fn tem(v: &Vista, trecho: &str) -> bool {
+    v.listas
+        .iter()
+        .chain(v.textos.iter())
+        .any(|t| t.contains(trecho))
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn evidence_decision_and_panel_flow() {
+    let reg = registry("d3");
+    passo(&reg, "nav-t", &[]).await;
+    passo(&reg, "novo", &[]).await;
+    passo(
+        &reg,
+        "salvar",
+        &[
+            ("f-nome", "Financeiro"),
+            ("f-processo", "fechamento"),
+            ("f-alternativa", "planilhas"),
+        ],
+    )
+    .await; // t1
+    passo(&reg, "nav-h", &[]).await;
+    passo(&reg, "novo", &[]).await;
+    passo(
+        &reg,
+        "salvar",
+        &[("f-t", "t1 · Financeiro"), ("f-texto", "Fechar leva dias")],
+    )
+    .await; // h2, sem "evidência contrária" definida
+    for (p, emp, papel) in [
+        ("P1", "Acme", "Responsável"),
+        ("P2", " ACME ", "Executor"),
+        ("P3", "Beta", "Comprador"),
+    ] {
+        passo(&reg, "nav-i", &[]).await;
+        passo(&reg, "novo", &[]).await;
+        passo(
+            &reg,
+            "salvar",
+            &[
+                ("f-part", p),
+                ("f-emp", emp),
+                ("f-papel", papel),
+                ("hk-h2", "true"),
+            ],
+        )
+        .await;
+    } // i3, i4, i5
+
+    // Validações da ficha de evidência (a ficha continua aberta, com o que foi digitado).
+    passo(&reg, "nav-v", &[]).await;
+    passo(&reg, "novo", &[]).await;
+    let h = "h2 · Fechar leva dias";
+    let v = passo(&reg, "salvar", &[("f-h", h), ("f-resumo", "x")]).await;
+    assert!(tem(&v, "Informe a fonte"));
+    assert_eq!(v.campos["f-resumo"], "x");
+    let v = passo(&reg, "salvar", &[("f-h", h), ("f-fonte", "i3")]).await;
+    assert!(tem(&v, "Resuma"));
+    let f2 = "2 · Entrevista detalhada";
+    let v = passo(
+        &reg,
+        "salvar",
+        &[
+            ("f-h", h),
+            ("f-fonte", "i3"),
+            ("f-resumo", "levou 3 dias"),
+            ("f-forca", f2),
+        ],
+    )
+    .await;
+    assert_eq!(
+        v.itens,
+        vec!["v6 · h2 · F2 · a favor · Acme · levou 3 dias"]
+    );
+    passo(&reg, "novo", &[]).await;
+    passo(
+        &reg,
+        "salvar",
+        &[
+            ("f-h", h),
+            ("f-fonte", "i4"),
+            ("f-resumo", "refaz tudo"),
+            ("f-forca", f2),
+        ],
+    )
+    .await;
+    passo(&reg, "novo", &[]).await;
+    passo(
+        &reg,
+        "salvar",
+        &[
+            ("f-h", h),
+            ("f-fonte", "i5"),
+            ("f-resumo", "tentou outra ferramenta"),
+            ("f-forca", "4 · Tentativa anterior de solução"),
+        ],
+    )
+    .await;
+    // A empresa e o papel vêm da entrevista citada como fonte.
+    let v = passo(&reg, "ab-v7", &[]).await;
+    assert_eq!(v.campos["f-emp"], "ACME");
+    assert_eq!(v.selects["f-forca"].1, f2);
+    passo(&reg, "cancelar", &[]).await;
+
+    // Painel: "Acme" e " ACME " são a mesma empresa (2 independentes em 3 falas).
+    let v = passo(&reg, "nav-p", &[]).await;
+    assert!(tem(
+        &v,
+        "a favor: 3 (empresas indep.: 2; papéis: 3; força máx.: 4) · contra: 0 (força máx.: 0)"
+    ));
+    assert!(tem(&v, "⚠ sem evidência contrária definida"));
+    assert!(tem(&v, "✗ Episódios em empresas independentes: 2"));
+    assert!(tem(&v, "✓ Alternativa atual compreendida"));
+    assert!(tem(&v, "✓ Mobilização para mudar"));
+    assert!(tem(&v, "✗ Acesso a quem pode testar"));
+    assert!(tem(&v, "✓ Contradições revisadas"));
+    assert!(tem(&v, "Nenhuma decisão registrada"));
+
+    // Evidência contrária abre uma contradição até haver uma decisão posterior sobre a hipótese.
+    passo(&reg, "nav-v", &[]).await;
+    passo(&reg, "novo", &[]).await;
+    passo(
+        &reg,
+        "salvar",
+        &[
+            ("f-h", h),
+            ("f-fonte", "https://exemplo.com/post"),
+            ("f-resumo", "outro time resolve em horas"),
+            ("f-forca", "3 · Observação autorizada"),
+            ("f-contra", "true"),
+            ("f-emp", "Gama"),
+        ],
+    )
+    .await; // v9
+    let v = passo(&reg, "nav-p", &[]).await;
+    assert!(tem(&v, "contra: 1 (força máx.: 3)"));
+    assert!(tem(&v, "⚠ contradição aberta"));
+    assert!(tem(&v, "✗ Contradições revisadas"));
+
+    passo(&reg, "nav-d", &[]).await;
+    passo(&reg, "novo", &[]).await;
+    let ficha = [
+        ("f-t", "t1 · Financeiro"),
+        ("f-esc", "Restringir o segmento"),
+        ("hk-h2", "true"),
+    ];
+    let v = passo(&reg, "salvar", &ficha).await;
+    assert!(tem(&v, "Explique o porquê"));
+    let mut ok = ficha.to_vec();
+    ok.push(("f-porque", "Foco em responsáveis"));
+    let v = passo(&reg, "salvar", &ok).await;
+    assert_eq!(v.itens.len(), 1);
+    assert!(v.itens[0].starts_with("d10 · t1 · Restringir o segmento · Foco em responsáveis"));
+    let v = passo(&reg, "nav-p", &[]).await;
+    assert!(!tem(&v, "⚠ contradição aberta"));
+    assert!(tem(&v, "✓ Contradições revisadas"));
+    assert!(tem(
+        &v,
+        "Última decisão: Restringir o segmento (d10): Foco em responsáveis"
+    ));
+
+    // Hipótese com evidências não sai; remover a entrevista leva junto as evidências que a citam.
+    passo(&reg, "nav-h", &[]).await;
+    passo(&reg, "rm-h2", &[]).await;
+    let v = passo(&reg, "sim", &[]).await;
+    assert!(tem(&v, "Há evidências ligadas"));
+    assert_eq!(v.itens.len(), 1);
+    passo(&reg, "nav-i", &[]).await;
+    let v = passo(&reg, "rm-i3", &[]).await;
+    assert!(tem(&v, "evidências que a citam"));
+    passo(&reg, "sim", &[]).await;
+    let v = passo(&reg, "nav-v", &[]).await;
+    assert_eq!(v.itens.len(), 3, "v6 saiu junto com a entrevista i3");
+    assert!(v.itens.iter().all(|i| !i.starts_with("v6 ")));
+
+    // Sem a decisão, a contradição volta a aparecer.
+    passo(&reg, "nav-d", &[]).await;
+    passo(&reg, "rm-d10", &[]).await;
+    passo(&reg, "sim", &[]).await;
+    let v = passo(&reg, "nav-p", &[]).await;
+    assert!(tem(&v, "⚠ contradição aberta"));
+    assert!(tem(&v, "a favor: 2 (empresas indep.: 2"));
 }

@@ -47,9 +47,9 @@ ex. `P3`; ver Privacidade), `empresa` (≤ 80, opcional), `papel` (`executor` | 
 `data` (texto `AAAA-MM-DD`, opcional), `fato`, `interpretacao`, `duvida` (cada ≤ 4000), `observacao` (houve observação
 autorizada: bool), `em`.
 
-**Evidência** `v<n>` (máx. 500): `h` (id da hipótese), `fonte` (`i:<id>` ou texto/URL ≤ 300),
+**Evidência** `v<n>` (máx. 500): `h` (id da hipótese), `fonte` (id de entrevista, como `i3`, ou texto/URL ≤ 300),
 `resumo` (≤ 500), `forca` (1 a 7), `contra` (bool: evidência **contrária**), `empresa` (≤ 80,
-herdada da entrevista quando há), `em`.
+herdada da entrevista quando a fonte é uma), `papel` (herdado da mesma entrevista), `em`.
 
 Escala de força (do doc de pesquisa): 1 reclamação pública · 2 entrevista detalhada ·
 3 observação autorizada · 4 tentativa anterior de solução · 5 acesso ao responsável ·
@@ -82,8 +82,10 @@ com os valores). Aviso proativo previsto quando o uso estimado passar de 3 MiB.
 - Escrita de um registro novo: (1) `meta.seq`, (2) registro, (3) `idx:x`. Uma queda no meio deixa, no
   pior caso, um registro **órfão** (existe, mas fora do índice) ou um id queimado, nunca um
   índice apontando para o vazio.
-- Remoção: (1) `idx:x`, (2) registro. Remover uma hipótese pergunta o que fazer com evidências e
-  entrevistas ligadas (desligar, nunca apagar em cascata).
+- Remoção: (1) `idx:x`, (2) registro. Regras (todas com confirmação): remover um **território** só se não houver
+  hipóteses nele; remover uma **hipótese** só se não houver evidências ligadas (as entrevistas
+  apenas perdem a ligação); remover uma **entrevista** apaga também as evidências que a citam como
+  fonte (pedido de exclusão: nada fica).
 - **Reparo na abertura** (`Init`): remove do índice ids sem registro e reinclui órfãos já
   conhecidos pelo prefixo da sequência (`1..=meta.seq`). Barato porque a sequência é curta.
 
