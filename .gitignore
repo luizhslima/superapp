@@ -18,3 +18,10 @@ target-iso/
 miniapps/**/*.wasm
 miniapps/**/.build/
 *.sapp
+
+# Microsserviços
+services/**/dist/
+services/**/.pytest_cache/
+services/**/__pycache__/
+services/events-java/target/
+services/.env

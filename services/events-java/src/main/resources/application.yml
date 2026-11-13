@@ -1,0 +1,24 @@
+server:
+  port: 8083
+
+spring:
+  application:
+    name: events-java
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:127.0.0.1:29092}
+    producer:
+      acks: all
+      properties:
+        enable.idempotence: true
+    consumer:
+      group-id: events-java
+      auto-offset-reset: earliest
+
+events:
+  topic: ${EVENTS_TOPIC:superapp.events}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health

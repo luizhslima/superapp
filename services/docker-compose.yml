@@ -1,0 +1,57 @@
+# Ambiente local dos microsserviços. Uso: docker compose up --build
+# Tudo escuta só em 127.0.0.1 (nada exposto na rede).
+name: superapp-services
+
+services:
+  kafka:
+    image: apache/kafka:3.9.0 # modo KRaft: sem Zookeeper
+    ports:
+      - "127.0.0.1:29092:29092" # acesso do host (ferramentas locais)
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENERS: INTERNAL://:9092,HOST://:29092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:9092,HOST://127.0.0.1:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,HOST:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true" # só para dev
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+
+  events-java: # Java: backbone de eventos (Kafka)
+    build: ./events-java
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      EVENTS_TOPIC: superapp.events
+    ports:
+      - "127.0.0.1:8083:8083"
+
+  ai-gateway: # Node/TypeScript: acesso único a LLMs (I/O, streaming)
+    build: ./ai-gateway
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      LLM_PROVIDER: ${LLM_PROVIDER:-echo}
+    ports:
+      - "127.0.0.1:8081:8081"
+
+  rag: # Python: ingestão, embeddings e busca vetorial
+    build: ./rag
+    environment:
+      AI_GATEWAY_URL: http://ai-gateway:8081
+    depends_on:
+      - ai-gateway
+    ports:
+      - "127.0.0.1:8082:8082"
