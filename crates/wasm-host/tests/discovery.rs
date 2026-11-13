@@ -119,8 +119,10 @@ async fn novo_territorio(reg: &Registry, nome: &str) -> Vista {
 async fn full_flow_territory_hypothesis_interview_and_removals() {
     let reg = registry("flow");
 
-    // Vazio na abertura.
+    // Primeira abertura: a tela Início guia; a lista de territórios está vazia.
     let v = vista(&reg.dispatch(ID, &Event::Init).await.unwrap());
+    assert!(tem(&v, "Passo 1: crie o primeiro território"));
+    let v = passo(&reg, "nav-t", &[]).await;
     assert!(v.itens.is_empty());
     assert!(v.textos.iter().any(|t| t.contains("Nenhum território")));
 
@@ -543,4 +545,78 @@ async fn evidence_decision_and_panel_flow() {
     let v = passo(&reg, "nav-p", &[]).await;
     assert!(tem(&v, "⚠ contradição aberta"));
     assert!(tem(&v, "a favor: 2 (empresas indep.: 2"));
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn start_screen_guides_step_by_step_and_forms_have_examples_and_tips() {
+    let reg = registry("guia");
+    let v = vista(&reg.dispatch(ID, &Event::Init).await.unwrap());
+    // Começo: explicação, passos, "agora" no primeiro, botão certo, "quando termino" e glossário.
+    assert!(tem(&v, "Discovery é descobrir"));
+    assert!(tem(&v, "→ AGORA: 1. Escolha onde olhar"));
+    assert!(tem(&v, "○ 6. Olhe o Painel e decida"));
+    assert!(v.botoes.contains(&"go-form-t".to_string()));
+    assert!(tem(&v, "Um ciclo termina quando você registra uma decisão"));
+    assert!(tem(&v, "Empresa independente:"));
+    assert!(tem(&v, "Hipótese: fechar o mês leva mais de 3 dias"));
+
+    // O botão leva à ficha, que traz dica e exemplos em cinza (placeholders válidos na UI).
+    let n = reg.dispatch(ID, &ev("go-form-t", &[])).await.unwrap();
+    let json = serde_json::to_string(&n).unwrap();
+    assert!(json.contains("Dica: escolha uma área pequena"));
+    assert!(json.contains("ex.: Financeiro de pequenas empresas"));
+    passo(&reg, "salvar", &[("f-nome", "Financeiro")]).await;
+
+    // Passo 2 -> hipótese; depois 3 e 4 (entrevistas), 5 (evidência) e 6 (decisão).
+    let v = passo(&reg, "nav-home", &[]).await;
+    assert!(tem(&v, "✓ 1. Escolha onde olhar"));
+    assert!(tem(&v, "→ AGORA: 2. Escreva o que você acredita"));
+    assert!(v.botoes.contains(&"go-form-h".to_string()));
+    passo(&reg, "go-form-h", &[]).await;
+    passo(
+        &reg,
+        "salvar",
+        &[("f-t", "t1 · Financeiro"), ("f-texto", "Fechar leva dias")],
+    )
+    .await;
+    let v = passo(&reg, "nav-home", &[]).await;
+    assert!(tem(&v, "Faltam 5 entrevista(s)"));
+    assert!(v.botoes.contains(&"nav-r".to_string()));
+    for i in 0..5 {
+        passo(&reg, "go-form-i", &[]).await;
+        passo(&reg, "salvar", &[("f-part", &format!("P{i}"))]).await;
+    }
+    let v = passo(&reg, "nav-home", &[]).await;
+    assert!(tem(
+        &v,
+        "✓ 4. Converse e anote cada entrevista (Entrevistas): 5 de 5"
+    ));
+    assert!(tem(&v, "→ AGORA: 5. Registre"));
+    passo(&reg, "go-form-v", &[]).await;
+    passo(
+        &reg,
+        "salvar",
+        &[
+            ("f-h", "h2 · Fechar leva dias"),
+            ("f-fonte", "i3"),
+            ("f-resumo", "levou 3 dias"),
+        ],
+    )
+    .await;
+    let v = passo(&reg, "nav-home", &[]).await;
+    assert!(tem(&v, "Passo 6: abra o Painel"));
+    assert!(v.botoes.contains(&"go-painel".to_string()));
+    passo(&reg, "go-form-d", &[]).await;
+    passo(
+        &reg,
+        "salvar",
+        &[("f-t", "t1 · Financeiro"), ("f-porque", "faz sentido")],
+    )
+    .await;
+    let v = passo(&reg, "nav-home", &[]).await;
+    assert!(tem(&v, "Você completou um ciclo"));
+    assert!(!tem(&v, "→ AGORA"));
+    // O atalho "ver o Painel" leva ao painel.
+    let v = passo(&reg, "go-painel", &[]).await;
+    assert!(tem(&v, "Painel calculado do que você registrou"));
 }

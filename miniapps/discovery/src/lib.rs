@@ -369,8 +369,9 @@ fn lista_da(tela: &str) -> &'static str {
 
 fn clique(ui: &mut Ui, ctx: &mut Ctx, id: &str, values: &Valores) {
     match id {
-        "nav-t" | "nav-h" | "nav-i" | "nav-v" | "nav-d" | "nav-p" | "nav-r" => {
+        "nav-home" | "nav-t" | "nav-h" | "nav-i" | "nav-v" | "nav-d" | "nav-p" | "nav-r" => {
             ui.tela = match id {
+                "nav-home" => "inicio",
                 "nav-t" => "territorios",
                 "nav-h" => "hipoteses",
                 "nav-i" => "entrevistas",
@@ -382,6 +383,19 @@ fn clique(ui: &mut Ui, ctx: &mut Ctx, id: &str, values: &Valores) {
             .into();
             ui.sel.clear();
             ui.pag = 0;
+        }
+        // Atalhos do "próximo passo" da tela Início.
+        "go-form-t" | "go-form-h" | "go-form-i" | "go-form-v" | "go-form-d" => {
+            if ctx.somente_leitura {
+                ctx.aviso = Some(MSG_RO.into());
+            } else {
+                ui.tela = id.strip_prefix("go-").unwrap_or("inicio").into();
+                ui.sel.clear();
+            }
+        }
+        "go-painel" => {
+            ui.tela = "painel".into();
+            ui.sel.clear();
         }
         "pag-ant" => ui.pag = ui.pag.saturating_sub(1),
         "pag-prox" => ui.pag += 1,
@@ -598,6 +612,7 @@ fn remover(ui: &mut Ui, ctx: &mut Ctx) {
 fn nav() -> Node {
     ui::stack(vec![
         ui::row(vec![
+            ui::button("nav-home", "Início"),
             ui::button("nav-t", "Territórios"),
             ui::button("nav-h", "Hipóteses"),
             ui::button("nav-i", "Entrevistas"),
@@ -951,10 +966,14 @@ fn tela(u: &Ui, ctx: &Ctx) -> Node {
         f.push(ui::text(a.clone()));
     }
     f.push(ui::divider());
+    if let Some(h) = ajuda_form(&u.tela) {
+        f.push(ui::text(h));
+    }
     f.extend(match u.tela.as_str() {
         "hipoteses" => tela_hipoteses(u),
         "entrevistas" => tela_entrevistas(u),
         "roteiro" => tela_roteiro(),
+        "territorios" => tela_territorios(u),
         "evidencias" => tela_evidencias(u),
         "decisoes" => tela_decisoes(u),
         "painel" => tela_painel(),
@@ -964,9 +983,11 @@ fn tela(u: &Ui, ctx: &Ctx) -> Node {
         "form-h" => ficha_hipotese(&u.sel, &ctx.rascunho),
         "form-i" => ficha_entrevista(&u.sel, &ctx.rascunho),
         "confirma" => tela_confirma(&u.sel),
-        _ => tela_territorios(u),
+        _ => tela_inicio(),
     });
-    ui::stack(f)
+    let mut raiz = ui::stack(f);
+    dicas(&mut raiz);
+    raiz
 }
 
 // ---------------------------------------------------------------- D3: evidências, decisões, painel
@@ -1515,6 +1536,205 @@ fn tela_painel() -> Vec<Node> {
     f
 }
 
+// ---------------------------------------------------------------- guia para quem está começando
+
+/// Quantas entrevistas formam o primeiro lote sugerido (um número para começar, não uma regra).
+const PRIMEIRO_LOTE: usize = 5;
+
+/// Exemplos em cinza dentro dos campos (placeholder, até 80 caracteres), por id de campo.
+const EXEMPLOS: &[(&str, &str)] = &[
+    ("f-nome", "ex.: Financeiro de pequenas empresas"),
+    (
+        "f-processo",
+        "ex.: fechamento do mês e conciliação bancária",
+    ),
+    ("f-executor", "ex.: analista financeiro"),
+    ("f-responsavel", "ex.: controller ou gerente financeiro"),
+    (
+        "f-contexto",
+        "ex.: empresas de 10 a 50 pessoas, vários bancos",
+    ),
+    ("f-alternativa", "ex.: planilhas e conferência manual"),
+    ("f-gatilho", "ex.: crescimento, auditoria, troca de sistema"),
+    (
+        "f-texto",
+        "ex.: fechar o mês leva mais de 3 dias por conferência manual",
+    ),
+    (
+        "f-procura",
+        "ex.: relatos de retrabalho, horas gastas, erros que custaram dinheiro",
+    ),
+    (
+        "f-contra",
+        "ex.: ninguém reclama, ou a planilha atual resolve bem",
+    ),
+    (
+        "f-experimento",
+        "ex.: entrevistar 5 analistas sobre a última vez que fecharam o mês",
+    ),
+    ("f-part", "ex.: P1"),
+    ("f-emp", "ex.: Acme"),
+    ("f-data", "ex.: 2026-11-13"),
+    (
+        "f-fato",
+        "ex.: na última vez levou 3 dias e refizeram a conciliação 2 vezes",
+    ),
+    (
+        "f-interp",
+        "ex.: parece que o problema é a conferência, não o sistema",
+    ),
+    (
+        "f-duvida",
+        "ex.: isso acontece todo mês? quem aprova o orçamento?",
+    ),
+    ("f-fonte", "ex.: i3 (a entrevista) ou o link de onde veio"),
+    (
+        "f-resumo",
+        "ex.: levou 3 dias e refez a conciliação duas vezes",
+    ),
+    (
+        "f-porque",
+        "ex.: 3 empresas independentes relataram o mesmo problema recente",
+    ),
+    (
+        "f-prox",
+        "ex.: fazer a conciliação à mão para 2 clientes, para testar",
+    ),
+];
+
+/// Coloca os exemplos nos campos de texto (percorre a tela inteira).
+fn dicas(n: &mut Node) {
+    match n {
+        Node::Stack { children } | Node::Row { children } => children.iter_mut().for_each(dicas),
+        Node::Input {
+            id, placeholder, ..
+        }
+        | Node::Textarea {
+            id, placeholder, ..
+        } => {
+            if let Some((_, ex)) = EXEMPLOS.iter().find(|(k, _)| k == id) {
+                *placeholder = (*ex).to_string();
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Uma dica curta no alto de cada ficha, dizendo o que escrever.
+fn ajuda_form(tela: &str) -> Option<&'static str> {
+    Some(match tela {
+        "form-t" => "Dica: escolha uma área pequena e concreta (dá para mudar depois). Os exemplos em cinza mostram o formato; só o nome é obrigatório.",
+        "form-h" => "Dica: escreva algo que possa estar ERRADO, como \"fechar o mês leva dias por conferência manual\". Depois você procura provas a favor e contra.",
+        "form-i" => "Dica: preencha logo depois da conversa. Fato = o que a pessoa contou. Interpretação = o que você acha. Use um código (P1, P2), não o nome. Só o código é obrigatório.",
+        "form-v" => "Dica: uma evidência é UM fato com fonte. Vale mais quanto mais a pessoa se comprometeu (tentou resolver, testou, pagou). Marque \"contrária\" se ela desmente a hipótese.",
+        "form-d" => "Dica: decida olhando o Painel. Não precisa estar certo: precisa estar escrito, com o motivo e o próximo experimento.",
+        _ => return None,
+    })
+}
+
+fn tela_inicio() -> Vec<Node> {
+    let n = |c: Col| indice(c).len();
+    let (nt, nh, ni, nv, nd) = (n(Col::T), n(Col::H), n(Col::I), n(Col::V), n(Col::D));
+    // (feito?, descrição): o primeiro não feito é o "agora".
+    let passos: [(bool, String); 6] = [
+        (nt > 0, format!("1. Escolha onde olhar (Territórios): {nt} criado(s)")),
+        (nh > 0, format!("2. Escreva o que você acredita (Hipóteses): {nh}")),
+        (ni > 0, "3. Leia o Roteiro e marque as conversas".to_string()),
+        (
+            ni >= PRIMEIRO_LOTE,
+            format!("4. Converse e anote cada entrevista (Entrevistas): {ni} de {PRIMEIRO_LOTE} do primeiro lote"),
+        ),
+        (nv > 0, format!("5. Registre o que provou ou desmentiu (Evidências): {nv}")),
+        (nd > 0, format!("6. Olhe o Painel e decida (Decisões): {nd}")),
+    ];
+    let agora = passos.iter().position(|(feito, _)| !feito);
+    let linhas: Vec<String> = passos
+        .iter()
+        .enumerate()
+        .map(|(i, (feito, t))| {
+            let marca = if *feito {
+                "✓"
+            } else if Some(i) == agora {
+                "→ AGORA:"
+            } else {
+                "○"
+            };
+            format!("{marca} {t}")
+        })
+        .collect();
+
+    let mut f = vec![
+        ui::heading("Por onde começar?"),
+        ui::text("Discovery é descobrir, antes de construir, se existe um problema real, para quem e se vale a pena resolvê-lo. Você conversa com pessoas, anota o que ouviu e decide se continua. Aqui você faz isso em seis passos."),
+        ui::list(linhas),
+        ui::heading("Seu próximo passo"),
+    ];
+    let (texto, botoes): (String, Vec<Node>) = match agora {
+        Some(0) => (
+            "Passo 1: crie o primeiro território. É só dar um nome à área que você quer investigar (ex.: \"Financeiro de pequenas empresas\"). Leva um minuto.".into(),
+            vec![ui::button("go-form-t", "Criar território")],
+        ),
+        Some(1) => (
+            "Passo 2: escreva sua primeira hipótese: algo que você acredita sobre o problema e que pode estar errado.".into(),
+            vec![ui::button("go-form-h", "Escrever hipótese")],
+        ),
+        Some(2) | Some(3) => (
+            format!("Passos 3 e 4: marque conversas com pessoas que vivem o problema e anote cada uma logo depois. Faltam {} entrevista(s) para completar o primeiro lote de {PRIMEIRO_LOTE}. Antes de conversar, leia o Roteiro.", PRIMEIRO_LOTE.saturating_sub(ni)),
+            vec![
+                ui::button("nav-r", "Ler o roteiro"),
+                ui::button("go-form-i", "Registrar entrevista"),
+            ],
+        ),
+        Some(4) => (
+            "Passo 5: transforme o que ouviu em evidências: um fato, ligado a uma hipótese, com a fonte. Registre também o que desmente a hipótese.".into(),
+            vec![ui::button("go-form-v", "Registrar evidência")],
+        ),
+        Some(_) => (
+            "Passo 6: abra o Painel para ver o que as evidências mostram e registre sua decisão: avançar, restringir, reformular ou abandonar.".into(),
+            vec![
+                ui::button("go-painel", "Ver o Painel"),
+                ui::button("go-form-d", "Registrar decisão"),
+            ],
+        ),
+        None => (
+            "Você completou um ciclo! Releia o Painel, escolha o próximo experimento (ele fica na decisão) e volte ao passo 4 com um novo grupo de conversas.".into(),
+            vec![ui::button("go-painel", "Ver o Painel")],
+        ),
+    };
+    f.push(ui::text(texto));
+    f.push(ui::row(botoes));
+
+    f.push(ui::heading("Quando posso terminar?"));
+    f.push(ui::list([
+        "Um ciclo termina quando você registra uma decisão (avançar, restringir, reformular ou abandonar) com o motivo e o próximo experimento.",
+        "Não existe número mágico. O Painel mostra empresas independentes, evidências fortes e contradições; ele sugere, você decide.",
+        "Hipótese refutada é um bom resultado: você descobriu cedo, sem gastar meses construindo a coisa errada.",
+        "Depois de decidir, escolha o próximo experimento e volte à fase de conversas com um grupo novo.",
+    ]));
+
+    f.push(ui::heading("Palavras que aparecem aqui"));
+    f.push(ui::list([
+        "Território: a área ou o processo que você vai investigar (ex.: fechamento financeiro).",
+        "Hipótese: algo que você acredita e pode ser provado errado.",
+        "Entrevista: uma conversa sobre o que a pessoa fez de verdade, não sobre a sua ideia.",
+        "Fato × interpretação: fato é o que a pessoa contou; interpretação é o que você conclui disso.",
+        "Evidência: um fato com fonte ligado a uma hipótese. A força vai de 1 (reclamação pública) a 7 (pagamento).",
+        "Empresa independente: empresas diferentes entre si. Dez falas da mesma empresa contam como uma.",
+        "Decisão: o que você faz com o que descobriu, e por quê.",
+    ]));
+
+    f.push(ui::heading("Exemplo para se inspirar"));
+    f.push(ui::list([
+        "Território: Financeiro de pequenas empresas (processo: fechamento do mês).",
+        "Hipótese: fechar o mês leva mais de 3 dias por conferência manual.",
+        "Entrevista P1 (Acme, responsável): na última vez levou 3 dias e refizeram a conciliação.",
+        "Evidência: fonte i3, força 2 (entrevista), a favor da hipótese.",
+        "Painel: 3 empresas independentes relataram o mesmo problema.",
+        "Decisão: restringir o segmento a empresas com vários bancos; próximo experimento: fazer a conciliação à mão para 2 clientes.",
+    ]));
+    f
+}
+
 // ---------------------------------------------------------------- entrada
 
 struct Discovery;
@@ -1539,7 +1759,7 @@ impl App for Discovery {
             Event::Click { id, values } => clique(&mut u, &mut ctx, id, values),
         }
         if u.tela.is_empty() {
-            u.tela = "territorios".into();
+            u.tela = "inicio".into();
         }
         if !ctx.somente_leitura {
             // Gravar a tela é conveniência: falha de quota não derruba a execução.

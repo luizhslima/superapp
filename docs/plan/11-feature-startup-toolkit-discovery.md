@@ -71,6 +71,7 @@ declarativa; o estado vive no storage (cada evento roda numa instância nova).
 - ✅ **D2** Mini-app `discovery`: Território, Hipóteses, Entrevistas (testes de ponta a ponta em Wasm,
   como `tarefas`).
 - ✅ **D3** Evidências, painel e decisão.
+- ✅ **Guia para iniciantes (2026-11-13)**: tela Início com os 6 passos, "próximo passo" calculado, "quando posso terminar", glossário e exemplo; exemplos em cinza nos campos e uma dica em cada ficha.
 - **D4** Exportação Markdown; uso real por duas semanas e revisão.
 
 Critério de pronto da fatia: conduzir uma rodada real de entrevistas só com o mini-app, sem
